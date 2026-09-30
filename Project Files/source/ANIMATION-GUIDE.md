@@ -5,4 +5,4 @@
 - Preserve the last interaction or movement facing when returning to idle.
 - A single click on Mochi selects a random animation across all categories. Dragging must not trigger a click reaction. No double-click interaction. Come here opens a cancellable screen destination picker and swims to the selected spot; it must not teleport Mochi.
 - Keep Mochi behind other apps and above the desktop background. Preserve settings and the Windows startup toggle when installing updates.
-- Source and build script: `outputs/Mochi Desktop/source/`. Build to a staging path, run the executable's `--self-test` checks, and review relevant rendered previews before replacing the installed executable.
+- Source and build script: `Project Files/source/` from the repository root. The build script outputs `Mochi.exe` at the repository root by default. Build to a staging path, run the executable's `--self-test` checks, and review relevant rendered previews before replacing the installed executable.

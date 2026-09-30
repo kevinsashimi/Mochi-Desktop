@@ -1,0 +1,5 @@
+PASS: newer/same/older versions; numeric ordering; malformed/oversize metadata; offline and cancellation; no executable download during checks.
+PASS: only Mochi.exe downloaded; SHA-256, length, and embedded version validation; bad downloads rejected.
+PASS: atomic executable-only replacement, restart arguments, unchanged settings/support files, rollback on restart failure, locked and changed targets.
+PASS: real helper waits for old process, replaces Mochi.exe, and launches the new executable from paths containing spaces.
+PASS: shared pet/tray menu contains Check for updates and Info; displayed version comes from the running assembly.

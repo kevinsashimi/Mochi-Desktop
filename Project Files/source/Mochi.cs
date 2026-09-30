@@ -15,11 +15,19 @@ namespace MochiDesktop {
     static class Program {
         public static bool TestUi;
         public static EventWaitHandle SettingsRequest;
+        public static string DataDirectory {
+            get {
+                string projectFiles=Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"Project Files");
+                return Directory.Exists(projectFiles)?projectFiles:AppDomain.CurrentDomain.BaseDirectory;
+            }
+        }
         [STAThread] static int Main(string[] args) {
+            if (args.Length == 2 && args[0] == "--apply-update") return UpdateInstaller.RunHelper(args[1]);
             try {
                 Native.SetProcessDPIAware();
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
+                if (args.Length == 2 && args[0] == "--update-self-test") return UpdateTests.Run(args[1]);
                 if (args.Length >= 2 && args[0] == "--self-test") return Tests.Run(args[1]);
                 if (args.Length >= 2 && args[0] == "--feed-preview") {FeedingPreview.Write(args[1]);return 0;}
                 if (args.Length >= 2 && args[0] == "--gaze-preview") {GazePreview.Write(args[1]);return 0;}
@@ -36,6 +44,7 @@ namespace MochiDesktop {
                 using (Mutex mutex = new Mutex(true, "Local\\MochiDesktopCompanion", out first)) {
                     if (!first) { using(EventWaitHandle request=EventWaitHandle.OpenExisting("Local\\MochiDesktopSettings"))request.Set(); return 0; }
                     using(SettingsRequest=new EventWaitHandle(false,EventResetMode.AutoReset,"Local\\MochiDesktopSettings")) {
+                        if(args.Length == 2 && args[0] == "--cleanup-update") UpdateInstaller.CleanupAfterRestart(args[1]);
                         if(openSettings)SettingsRequest.Set();
                         Application.Run(new Companion());
                     }
@@ -43,7 +52,7 @@ namespace MochiDesktop {
                 }
                 return 0;
             } catch(Exception ex) {
-                try { File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"error.log"), ex.ToString()); } catch {}
+                try { File.WriteAllText(Path.Combine(DataDirectory,"error.log"), ex.ToString()); } catch {}
                 MessageBox.Show("Mochi couldn't start: " + ex.Message, "Mochi Desktop", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return 1;
             }
@@ -53,7 +62,7 @@ namespace MochiDesktop {
     sealed class Preferences {
         public int Size = 176, Frequency = 1, X = int.MinValue, Y = int.MinValue, NextFeed, NextPet, NextPlay;
         public bool Roam = true;
-        static string FilePath { get { return Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"settings.xml"); } }
+        static string FilePath { get { return Path.Combine(Program.DataDirectory,"settings.xml"); } }
         public static Preferences Load(string filePath=null) {
             Preferences p = new Preferences();
             try {
@@ -252,7 +261,7 @@ namespace MochiDesktop {
             tray=new NotifyIcon{Icon=trayIcon,Text="Mochi - right-click for controls",Visible=true,ContextMenuStrip=menu};
             tray.MouseClick+=delegate(object sender,MouseEventArgs e){if(e.Button==MouseButtons.Left)menu.Show(Cursor.Position);};
             timer.Interval=15; timer.Tick+=delegate{Tick();};
-            Shown+=delegate{Native.KeepBehindApps(Handle);StartWelcome();timer.Start();Render();};
+            Shown+=delegate{Native.KeepBehindApps(Handle);StartWelcome();timer.Start();Render();StartUpdateCheck(false);};
             SetStyle(ControlStyles.StandardDoubleClick,false);
             MouseDown+=OnDown;MouseMove+=OnMove;MouseUp+=OnUp;
             MouseCaptureChanged+=delegate{if(!Capture && down){down=false;dragging=false;Schedule();ScheduleIdleActivity();}};
@@ -270,6 +279,7 @@ namespace MochiDesktop {
             pauseItem.Click+=delegate{prefs.Roam=!prefs.Roam;swimming=false;Schedule();Save();Act(3,prefs.Roam?"Let's explore a little.":"I'll stay right here.",2.5);};menu.Items.Add(pauseItem);
             menu.Items.Add("Settings...",null,delegate{OpenSettings();});
             menu.Items.Add("How to play",null,delegate{Help();});
+            AddUpdateMenu();
             menu.Items.Add(new ToolStripSeparator());menu.Items.Add("Quit Mochi",null,delegate{Close();});
             menu.Opening+=delegate{CancelInteraction();swimming=false;edgeWatch.Reset(Now);ScheduleIdleActivity();pauseItem.Checked=!prefs.Roam;};menu.Closed+=delegate{Schedule();ScheduleIdleActivity();edgeWatch.Reset(Now);};
         }
@@ -360,6 +370,8 @@ namespace MochiDesktop {
             StartSwimPath(swimPath,b,false);
         }
         void Tick(){
+            PumpUpdateNotice();
+            if(closing)return;
             if(Program.SettingsRequest!=null && Program.SettingsRequest.WaitOne(0) && !modal){OpenSettings();return;}
             if(Now>=nextBackgroundCheck){Native.KeepBehindApps(Handle);nextBackgroundCheck=Now+1;}
             Advance(Now,Cursor.Position);
@@ -425,7 +437,7 @@ namespace MochiDesktop {
             try{using(SettingsDialog d=new SettingsDialog(prefs)){if(d.ShowDialog()==DialogResult.OK){Size=Renderer.WindowSize(prefs.Size);Location=Motion.Clamp(Location,Size,Screen.FromRectangle(Bounds).WorkingArea);Save();}}}
             finally{modal=false;Schedule();ScheduleIdleActivity();edgeWatch.Reset(Now);}
         }
-        void Help(){swimming=false;modal=true;try{MessageBox.Show("Click Mochi for a random petting, play, or snack animation.\nDrag Mochi to move to another spot or monitor.\nMove your pointer nearby and Mochi will look toward it.\n\nRight-click Mochi or the tray icon to choose petting, feeding, play, swimming, settings, or Quit.\nClick the tray icon to open the controls.\nChoose Come here, then click a spot for Mochi to swim to.\nPress Escape or right-click to cancel choosing a spot.\n\nEvery 3-5 quiet minutes, Mochi takes turns snacking, enjoying a pat, and playing, with a random animation each time. Interacting with Mochi restarts the wait.\n\nMochi occasionally swims within the current screen.\nSettings lets you pause swimming or change its frequency, size, and Windows startup.\n\nEverything runs locally. No account, microphone, or network needed.","Hello, I'm Mochi",MessageBoxButtons.OK,MessageBoxIcon.Information);}finally{modal=false;Schedule();ScheduleIdleActivity();}}
+        void Help(){swimming=false;modal=true;try{MessageBox.Show("Click Mochi for a random petting, play, or snack animation.\nDrag Mochi to move to another spot or monitor.\nMove your pointer nearby and Mochi will look toward it.\n\nRight-click Mochi or the tray icon to choose petting, feeding, play, swimming, settings, or Quit.\nClick the tray icon to open the controls.\nChoose Come here, then click a spot for Mochi to swim to.\nPress Escape or right-click to cancel choosing a spot.\n\nEvery 3-5 quiet minutes, Mochi takes turns snacking, enjoying a pat, and playing, with a random animation each time. Interacting with Mochi restarts the wait.\n\nMochi occasionally swims within the current screen.\nSettings lets you pause swimming or change its frequency, size, and Windows startup.\n\nMochi runs locally. Only update checks and downloads use the internet. No account or microphone is needed.","Hello, I'm Mochi",MessageBoxButtons.OK,MessageBoxIcon.Information);}finally{modal=false;Schedule();ScheduleIdleActivity();}}
         protected override void WndProc(ref Message m){
             if(m.Msg==0x46 && m.LParam!=IntPtr.Zero){ // WM_WINDOWPOSCHANGING
                 Native.WindowPosition position=(Native.WindowPosition)Marshal.PtrToStructure(m.LParam,typeof(Native.WindowPosition));
@@ -441,9 +453,9 @@ namespace MochiDesktop {
             }
             base.WndProc(ref m);
         }
-        protected override void OnFormClosing(FormClosingEventArgs e){closing=true;StopPicking();timer.Stop();Save();base.OnFormClosing(e);}
+        protected override void OnFormClosing(FormClosingEventArgs e){closing=true;StopUpdateChecks();StopPicking();timer.Stop();Save();base.OnFormClosing(e);}
         protected override void Dispose(bool disposing){
-            if(disposing && !resourcesDisposed){resourcesDisposed=true;StopPicking();Microsoft.Win32.SystemEvents.DisplaySettingsChanged-=DisplayChanged;
+            if(disposing && !resourcesDisposed){resourcesDisposed=true;StopUpdateChecks();StopPicking();Microsoft.Win32.SystemEvents.DisplaySettingsChanged-=DisplayChanged;
                 timer.Dispose();if(tray!=null){tray.Visible=false;tray.Dispose();}if(trayIcon!=null)trayIcon.Dispose();if(menu!=null)menu.Dispose();if(canvas!=null)canvas.Dispose();atlas.Dispose();}
             base.Dispose(disposing);
         }
@@ -767,6 +779,8 @@ namespace MochiDesktop {
         static void Check(bool ok,string message){if(!ok)throw new Exception(message);}
         public static int Run(string path){
             try{
+                if(UpdateTests.Run(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(path)),"update-test-results.txt"))!=0)
+                    throw new Exception("Updater tests failed; see update-test-results.txt.");
                 Check(Motion.Direction(0,-1)==0,"up cardinal");Check(Motion.Direction(1,0)==4,"right cardinal");Check(Motion.Direction(0,1)==8,"down cardinal");Check(Motion.Direction(-1,0)==12,"left cardinal");
                 for(int i=0;i<16;i++){double a=i*Math.PI/8;Check(Motion.Direction(Math.Sin(a),-Math.Cos(a))==i,"direction mapping "+i);}
                 Rectangle monitor=new Rectangle(-1920,-100,1920,1080);Size size=new Size(260,280);

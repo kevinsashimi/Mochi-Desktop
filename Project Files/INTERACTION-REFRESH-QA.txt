@@ -11,4 +11,4 @@ Validation: complete self-test passed. It covers 500 immediate click interaction
 
 Visual review: inspected both directions of the newly mirrored routines, the new hint and sample drag/drop text, and straight/curved/mixed route previews against a dark background. New previews are included in the previews folder.
 
-Future requirements are recorded in the project's AGENTS.md and source/ANIMATION-GUIDE.md.
+Future requirements are recorded in source/ANIMATION-GUIDE.md beside the relocated source files.

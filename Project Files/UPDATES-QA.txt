@@ -1,0 +1,38 @@
+Mochi Desktop updates — version 1.0.0
+Verified 1 October 2026 (Asia/Singapore).
+
+Behavior:
+- One background update check on each fresh launch, including Windows startup.
+- New versions prompt Yes/No before downloading. No and Cancel keep the current app.
+- Shared pet/tray menu includes Check for updates and Info.
+- Info reads the running executable's embedded assembly version.
+- Manual checks report up-to-date, unavailable metadata, or connection failures.
+- Automatic no-update/offline checks remain quiet; update prompts wait for greetings and active controls.
+
+Distribution:
+- Public repository: https://github.com/kevinsashimi/Mochi-Desktop
+- Reads main's commit, then the small Project Files/update.xml from that commit.
+- Only Mochi.exe is downloaded as the update payload, from the same commit.
+- Size, SHA-256 and assembly identity/version must match before replacement.
+- The helper waits for the current process to exit, atomically replaces only the executable,
+  then starts the updated app in the same location.
+- Settings, Project Files and startup shortcuts are not replaced.
+- The old executable is restored if starting the replacement throws.
+- Downloads, checks, and replacement failures leave the current app available.
+
+Fresh verification:
+- Full existing companion self-test suite passed with exit code 0.
+- Updater suite passed version comparisons, no-download checks, malformed metadata,
+  offline/cancellation, corrupted payload rejection, hash/size/version validation,
+  atomic replacement, unchanged settings/supporting files, locked/changed targets,
+  rollback, real helper process wait/replacement/restart, and menu entries.
+- Production .NET networking successfully reached GitHub without authentication and
+  handled the currently unpublished update manifest with the intended manual message.
+- Rebuilt companion preview rendered correctly.
+- The borderless pet window is not targetable by the desktop automation tool;
+  interactive menu clicks and accepting a real published remote update were not exercised.
+
+Publishing:
+The tested executable and matching Project Files/update.xml must be published together
+to main. Increase source/AssemblyInfo.cs versions for every future executable update
+and regenerate the manifest through source/build.ps1. See README.md for instructions.
