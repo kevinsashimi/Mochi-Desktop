@@ -1,0 +1,9 @@
+PASS - 2026-09-26 cursor-motion and swimming update.
+All 16 approved directional poses keep gentle buoyant motion while the cursor is still.
+Runtime animation uses a 2.8-second bob/breath cycle and a 3.6-second sway cycle.
+Turning eases toward the pointer and briefly blends neighboring poses; a small directional dead band avoids boundary flicker.
+Reviewed the all-direction sheet and ordered turning frames at desktop size: identity and direction are preserved, with no clipping.
+Automated pixel comparisons verify changing motion in all directions at all three sizes.
+Tests exercise the actual timer path for directional tracking, repeated swims with a stationary or distant cursor, full trip completion, and rest intervals.
+Pause, dragging, settings, feeding, and pending clicks still prevent automatic swims.
+The nonactivating desktop pet cannot be targeted by the UI automation tool; full live mouse input coverage was not automated.

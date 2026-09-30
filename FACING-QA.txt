@@ -1,0 +1,13 @@
+Mochi directional animation update - 30 September 2026
+
+Implemented: left/right idle memory; all original 13 reactions mirrored in both directions; three new right-facing routines (snack toss, nose boop, bubble surf). Double-click chooses among 29 directional variants. Manual menus retain their own saved cycles; idle activities still rotate feed/pet/play every 3-5 minutes.
+
+Swimming records the horizontal direction from its start to its destination. Dragging records the latest horizontal movement, including reversals. Pure vertical movement retains the previous side. Each interaction sets its own side and retains it after completion or interruption. Cursor gaze temporarily looks around without overwriting that memory.
+
+Each launch chooses a random safe position from the available monitor working areas and either the left-facing or right-facing normal idle pose. Introductions and the following controls hint keep that direction until movement or an interaction changes it.
+
+Validation: complete self-test suite passed, including all 29 directional variants through the actual handlers/timer, 100 swims, drag reversals/releases, temporary gaze, 3,000 random placements across landscape/portrait/negative-coordinate monitors, both idle startup directions, readable speech, and render bounds at all three sizes. Mirrored body pixel comparisons allow GDI+'s one-pixel raster registration difference. Prior single-pose and no-seam rendering checks passed.
+
+Visual review: inspected rendered left/right idle and barrel-roll/backflip pairs, both idle startup directions, and contact sheets of the three new routines against a dark background. Confirmed speech is not mirrored, boop effects remain visible, snack follows its mirrored arc, and bubble surfing uses a single crisp body image.
+
+Limit: native UI automation cannot target the nonactivating borderless pet, so interaction behavior was tested using the real handlers and timer in simulation, with actual renderer output inspected separately.

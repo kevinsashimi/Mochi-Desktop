@@ -1,0 +1,7 @@
+PASS - Random double-click interaction update, 2026-09-27.
+Double-clicking Mochi chooses from all 4 feeding, 5 petting, and 4 play reactions.
+Every animation is included in one selection pool; the preceding double-click choice is excluded.
+Single clicking continues the petting cycle. The three right-click menu actions retain their independent saved cycles.
+Actual double-click handler and timer checks cover 500 seeded requests: full selection coverage, no immediate repeats, exactly one active sequence, suppression of delayed single-click petting, unchanged menu cycle counters, and no surprise from the right button.
+The full animation, screen bounds, settings, cursor-following, and roaming checks also passed.
+Artwork is unchanged. The nonactivating desktop pet remains unavailable for complete automated live mouse input testing.

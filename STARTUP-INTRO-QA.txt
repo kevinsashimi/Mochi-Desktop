@@ -1,0 +1,21 @@
+PASS - Random startup introductions.
+
+Each fresh companion launch, including Windows startup, chooses one of:
+1. Hi, I'm Mochi! / Your whale shark pal.
+2. Hello! I'm Mochi. / Your ocean buddy.
+3. I'm Mochi! / Small fins, big heart!
+
+The introduction shows for four seconds. It is then replaced by:
+Click to pet me! / Right-click for more.
+The controls hint shows for four seconds, then ordinary idle behavior resumes.
+Manual interactions cancel the queued hint so it cannot interrupt another activity.
+
+Checked through the companion's actual timer with simulated elapsed time:
+- All three introductions selected across 30 simulated welcomes.
+- The hint never appears early, appears at the introduction deadline, and expires after its own full interval.
+- Petting, feeding, playing, opening controls, requested swimming, and a pending click at the deadline retain priority.
+- All four messages fit the speech bubble in two lines at all three pet sizes.
+- Preview rendered with the same DPI awareness as the application, checked at the current Windows display scaling.
+- Complete existing rendering and behavior checks pass; see TEST-RESULTS.txt.
+
+Artwork, user preferences, startup shortcut behavior, and existing interactions are unchanged.

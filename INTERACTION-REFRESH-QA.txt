@@ -1,0 +1,14 @@
+Mochi interaction and swimming update - 30 September 2026
+
+- A single left-click chooses a random reaction across feeding, petting, and play immediately on mouse release. No double-click handler or delay remains. Repeated rapid clicks are ordinary individual clicks. Drag releases do not trigger reactions. Menu category cycles remain independent.
+- The startup hint reads: Click to interact with me! Right-click for more.
+- Removed Come here from the context menu. A single tray-icon click opens the controls; double-click summoning was removed.
+- Added six pickup sayings and six landing sayings, each selected randomly without consecutive repeats.
+- All 16 routines now have both directions, including snack toss, nose boop, and bubble surf. Both-direction enumeration and render checks apply automatically to future additions. Reaction bodies and effects are mirrored as complete images, then readable speech is drawn afterward.
+- Swimming randomly selects straight, curved, or mixed paths. Mixed paths combine a line and a curve in either order with matching heading at their join. An arc-length lookup preserves continuous speed through joins; gradual launch/landing remains. Curve controls are kept within each monitor's usable area. Border escape remains active.
+
+Validation: complete self-test passed. It covers 500 immediate click interactions reaching every variant, rapid-click event counts, unmatched/right-button releases, 60 drag/drop cycles and all sayings, 100 idle category cycles, all 3 sizes, mirrored art/effects with unmirrored speech, safe routes across four monitor layouts, all 16 travel headings, both mixed segment orders, join continuity, and inward border escape. Existing single-pose/no-seam checks passed.
+
+Visual review: inspected both directions of the newly mirrored routines, the new hint and sample drag/drop text, and straight/curved/mixed route previews against a dark background. New previews are included in the previews folder.
+
+Future requirements are recorded in the project's AGENTS.md and source/ANIMATION-GUIDE.md.

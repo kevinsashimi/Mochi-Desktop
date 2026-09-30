@@ -1,0 +1,16 @@
+COME HERE SPEECH — 2026-10-01
+
+Eight setting-off sayings and eight arrival sayings (including the two originals).
+The two groups use the existing random-without-immediate-repeat selector independently.
+Choices are remembered for the current run. Ordinary autonomous swims remain quiet.
+Speech timing, movement, mirrored artwork, readable text, and settings are unchanged.
+
+Validation:
+- Staged build tested with the executable's --self-test suite.
+- Existing bubble layout checks now measure every new saying at all three companion sizes.
+- Reviewed both complete rendered contact sheets at the smallest size, alternating left/right poses. All 16 sayings fit without clipping.
+- Shared selector excludes only the previous choice, making every other line available with equal probability. Separate previous-choice fields keep departure and arrival selections independent.
+
+Previews:
+- previews/swim-over-sayings.png
+- previews/arrival-sayings.png

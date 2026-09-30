@@ -1,0 +1,21 @@
+PASS - After-image and vertical-seam correction.
+
+Causes reproduced:
+- Blending neighboring direction sprites, animation frames, and outgoing scenes overlaid different poses and produced doubled eyes, fins, and outlines.
+- Swimming was drawn in twelve independently transformed strips. Filtering at strip boundaries created transparent vertical seams, especially visible on dark wallpaper.
+
+Correction:
+- Draw exactly one illustrated pose per frame for idle, gaze, feeding, petting, play, and swimming.
+- Remove all pose/scene crossfades and their cached mixed images.
+- Draw the entire swimming sprite once, using a continuous whole-image sway transform.
+- Retain continuous body bobbing, breathing, turn banking, eased steering, faster redraws, curved all-direction travel, and border avoidance.
+- Keep the idle activity cycle, double-click interactions, saved preferences, and startup behavior.
+
+Regression validation:
+- Final diagnostic-art checks independently fail on the previous renderer for both a transparent seam and overlaid cursor-turn poses.
+- The corrected renderer passes those checks across all three sizes, repeated turns, swimming, all nine base animation rows, all nine pet/play reactions, and all four feeding animations in both facing contexts.
+- Body-core color checks detect mixed poses; dense interior-alpha checks detect cuts through a solid body. The intentional snack, hearts, sparkles, and speech are outside the body-core probe.
+- Full behavior, artwork, preferences, 500 double-click interactions, 100 idle cycles, 2,000 curved routes, all 16 directions, 320 border escapes, and priority checks pass.
+- Updated previews reviewed on light and dark backgrounds. See previews/corrected-swimming-dark.gif.
+
+Limit: automated live clicking/dragging of the nonactivating desktop pet remains unavailable. Image checks use the actual renderers; behavior checks use the actual companion timer with simulated elapsed time.

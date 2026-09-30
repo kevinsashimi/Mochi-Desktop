@@ -1,0 +1,9 @@
+ACCEPTED WITH MINOR CADENCE NOTE - Illustrated interaction update, 2026-09-26.
+32 new illustrated poses: nuzzle, flipper hug, longitudinal barrel roll, and backflip.
+Generated with the built-in image tool; no API fallback.
+All four coherent strips passed deterministic extraction, one edge-color cleanup pass, and transparent cell-margin checks.
+Independent final visual review confirmed stable Mochi identity, complete attached anatomy, readable nuzzle/hug/roll/backflip semantics, clear speech, and no clipping.
+Barrel roll: full belly/back rotation and clean upright return; angular steps are slightly uneven. Independent reviewers judged this minor and acceptable. No material repair remains.
+Backflip: nose-up, inverted, nose-down, and recovered poses form a complete backward somersault.
+Actual runtime previews were reviewed in ordered frames. Full live mouse UI automation remains unavailable for the nonactivating companion window.
+Automated checks passed for five petting and four play reactions at all three sizes, all 32 new cells in ordered playback, no flat-sprite rotation substituted for the illustrated poses, independent persisted cycles, retained old preferences, speech lifetime, clipping, interruption priorities, and return to idle.

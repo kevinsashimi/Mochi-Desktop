@@ -1,0 +1,28 @@
+COME HERE — 2026-10-01
+
+Behavior
+- Come here is available once in both the shared pet and tray menu.
+- Mochi asks the user to choose a spot; a temporary overlay covers every monitor.
+- A left-click chooses the destination. Escape, right-click, or leaving the picker cancels.
+- The opening menu release cannot select a destination, and selection does not pass a click to another app or trigger a random reaction.
+- Other activity waits while the picker is open. A selected trip swims smoothly to the target, including another monitor, with no teleport.
+- Requested trips work while roaming is paused and preserve that setting. Edge targets keep the full companion in the monitor work area.
+- Mochi remains behind apps during travel. Only the temporary picker is topmost.
+- On arrival he speaks and remembers his travel facing. Existing mirrored reactions and startup preferences remain intact.
+
+Validation
+- Built a staging executable and ran its full --self-test successfully; see TEST-RESULTS.txt.
+- Destination checks include holding selection through a long timer gap, cancellation without movement, interrupted interactions, clicks at screen corners/center, actual timer movement/arrival with roaming paused, no accidental random interaction, arrival facing, and cross-monitor traversal.
+- 900 placement/path checks cover three monitor layouts, negative coordinates, three companion sizes, exact endpoints, and sampled path bounds.
+- Picker handlers check negative-coordinate selection, ignored opening mouse-up, repeated-release suppression, and exactly one callback for Escape/right-click.
+- Separate native window smoke checks passed: layered bitmap display, requested offscreen bounds, temporary topmost and click-receiving styles, actual left/right mouse messages, selection coordinates, and closing/disposal without leftover windows.
+- Visually reviewed the rendered picker card and speech for prompt, travel, arrival and cancellation; prompt reviewed at all three companion sizes with both facings represented.
+- Full-screen card includes a nonzero-alpha click shield. Existing speech and body renderers preserve readable text and mirrored body poses.
+
+Limits
+- Native smoke used offscreen windows in the execution desktop. The user's Explorer desktop and real multi-monitor mouse/focus transitions are not exposed to this test environment; these were checked through handlers, layout/path tests, and code review rather than live user-desktop automation.
+
+Previews
+- previews/destination-picker.png
+- previews/come-here-speech.png
+- previews/come-here-sizes.png

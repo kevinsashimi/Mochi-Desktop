@@ -1,0 +1,13 @@
+PASS - independent visual review of all24 supplemental poses and ordered app-rendered frames.
+Gulp/cheek puff/blink/flipper flutter/tail wiggle readable.
+Snack chase travels left, then eats and wiggles.
+Tummy pat has two separate belly contacts.
+Happy roll tilts sideways and returns upright.
+Snack enters open mouth and disappears. No clipping or material identity drift.
+Minor: cheek puff subtle at desktop size; small natural pose change from swimming to eating.
+Temporal review used ordered frames, not real-time GIF playback.
+
+2026-09-26 update: speech bubbles now accompany each phase and reaction.
+Reviewed the updated app-rendered sequence contact sheet: text fits above Mochi,
+the shrimp remains visible while approaching, and all four reactions remain readable.
+Automated checks confirm bubble timing, disappearance at the end, and clear window edges at all three sizes.

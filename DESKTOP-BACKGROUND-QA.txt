@@ -1,0 +1,10 @@
+Mochi desktop background update - 30 September 2026
+
+The pet is no longer topmost. Native z-order requests keep it directly above Explorer's desktop surface and below ordinary apps. A one-second check restores placement after desktop changes without moving, resizing, or activating the companion. Settings is an ordinary non-topmost dialog. Existing animations, interactions, startup behavior, and preferences are retained.
+
+PASS: real companion window stays below an app probe when shown, moved, hidden/restored, or asked to become foreground/topmost; no topmost style and no keyboard focus change.
+NOTE: Explorer is not exposed on the test desktop. Checking desktop placement with controlled native windows instead.
+PASS: desktop anchor places the companion below ordinary apps and above the wallpaper, including repeated placement without a topmost style.
+
+Reference: https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowpos
+

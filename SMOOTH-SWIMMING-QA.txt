@@ -1,0 +1,29 @@
+Smooth animation and all-direction swimming update, revised after the rendering-artifact fix.
+
+Rendering:
+- One illustrated pose is drawn per frame. Crossfades between poses and scenes were removed after they produced visible double images.
+- Swimming draws the complete sprite in one continuous transform; drawing separate strips was removed after it produced vertical seams.
+- 15 ms Windows Forms timer requests approximately 60 redraws per second; actual scheduling is OS-dependent.
+- Continuous idle/feeding bobbing, gentler hop/wiggle/dance envelopes, eased steering and gentle banking for cursor-following and swimming.
+- Swimming uses all sixteen illustrated headings, a small whole-image tail/body sway, and fractional-pixel compensation.
+- Existing illustrated poses and full roll/flip sequences are retained.
+
+Roaming:
+- Random headings cover the full compass. Unavailable routes are rejected instead of flattened against a border.
+- Cubic curved paths stay in the current working area; fifth-order easing gives zero launch/landing velocity and acceleration.
+- About 25 seconds of recent border exposure triggers an inward trip, overriding the normal rest interval when necessary.
+- Escape destinations are randomized toward open water. Brief departures from an edge reduce recent exposure.
+- Pause, held dragging, settings, pending clicks and active interactions retain priority.
+- Automatic movement does not reset the 3-5 minute idle activity cycle.
+
+Validation:
+- Full existing artwork, interaction, gaze, preference, double-click and idle-activity test suite passed.
+- 2,000 curved paths sampled at 101 points each across landscape, portrait, small and negative-coordinate work areas remained inside bounds.
+- All sixteen random heading sectors were reached.
+- 320 escape paths from edges and corners ended away from borders.
+- Actual companion timer verified 25-second escape timing, arrival in open water, preserved idle deadline, and pause/drag/settings/petting priority.
+- Diagnostic art checks detect overlaid poses in idle, feeding, petting, play, gaze and swimming at all three sizes.
+- Dense interior-alpha checks detect vertical seams during swimming and turning at all three sizes.
+- Swimming rendered without clipping in all 16 directions and all 3 sizes.
+
+Visual QA uses rendered previews and contact sheets. Timing and long runs were tested with deterministic simulated elapsed time. Native live click-and-drag automation of the nonactivating pet remains unavailable.

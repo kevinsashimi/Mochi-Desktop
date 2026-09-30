@@ -1,0 +1,11 @@
+{
+  "asset": "barrel-attempt2.png",
+  "status": "accepted_minor_after_independent_review",
+  "initial_concern": "Frame 7 was not convincingly at the prompt's exact 285-degree sideways attitude.",
+  "independent_reviewer": "illustrated_roll_review",
+  "independent_verdict": "MINOR",
+  "evidence": "Frames 1-8 show upright, belly turning toward viewer, quarter-turn, belly rising, inverted belly-up, continuing opposite side, spotted back facing viewer, and clean upright return; nose stays left and tail stays right. No reversal or incomplete return.",
+  "accepted_limitation": "Angular spacing is uneven, especially around frames 4-6. The ordered sequence still reads as a complete longitudinal roll.",
+  "final_contact_review_required": false,
+  "final_review": "MINOR - acceptable for packaging, no material repair needed; reviewed illustrated contact sheet and actual runtime frames."
+}
