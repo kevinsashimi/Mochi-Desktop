@@ -53,7 +53,7 @@ Try these three menu favorites:
 - **Pet Mochi:** cheek nuzzles, happy wiggles, cozy sways, high flippers, flipper hugs, and nose boops.
 - **Play together:** barrel rolls, backflips, double hops, fin dances, and bubble surfing.
 
-Mochi also entertains himself. After **3–5 quiet minutes**, he takes a snack break, then later enjoys a pat, then plays. The cycle repeats with a fresh wait between activities. You can keep working; interacting with him simply restarts the wait.
+Mochi also entertains himself. Every **3–5 minutes**, he takes a snack break, then later enjoys a pat, then plays. The cycle repeats with a fresh wait after each activity. If he is busy, his next activity waits its turn.
 
 ## 3. Send him on a little adventure
 
@@ -72,11 +72,34 @@ Need him to stay nearby? Toggle **Pause swimming** in his menu. You can still fe
 
 1. Open Mochi's menu and choose **Settings...**.
 2. Pick **Small**, **Medium**, or **Large**.
-3. Choose a swimming mood: **Calm** (45–90 seconds between swims), **Balanced** (25–55 seconds), or **Playful** (12–25 seconds).
+3. Choose a swimming mood: **Calm** (45–90 seconds between swims), **Balanced** (25–55 seconds), or **Energetic** (12–25 seconds).
 4. Turn **Swim around occasionally** on or off, and enable **Start with Windows** if you want him to greet you after signing in.
-5. Click **Save**.
+5. Feeling mischievous? You can also enable **Playful Mode** here. It starts off disabled.
+6. Click **Save**.
 
 Opening `Mochi.exe` again brings up Settings for your existing companion. It does not create a second Mochi.
+
+## Playful Mode: tiny fins, a little mischief
+
+Mochi has discovered interior decorating. Unfortunately, his decorating supplies are your desktop icons.
+
+Turn on **Playful Mode (mischievous icons)** in **Settings...**, then click **Save**. This toggle lives only in Settings; the **Calm**, **Balanced**, and **Energetic** swimming-frequency options control how often Mochi takes an ordinary swim.
+
+Every **3–5 minutes**, Mochi picks a desktop icon on his current monitor, swims over, and either scoops it up with his pectoral fins or gives it a gentle little bite. Then he carries it along a random straight, curved, or mixed route, drops it in a free spot, and celebrates with a giggle or a cheeky line:
+
+> “Nothing to sea here!” · “Your icon booked a shark taxi.” · “Oops. My fins slipped. Twice.”
+
+| A sneaky fin-grab | A gentle icon nibble |
+| :---: | :---: |
+| ![Mochi grabs a sample folder icon with his fins and carries it to a new spot](Project%20Files/previews/playful-fin-grab.gif) | ![Mochi carries a sample folder icon in his mouth, drops it off, and giggles](Project%20Files/previews/playful-gentle-bite.gif) |
+
+The previews use a sample icon. In the app, Mochi rearranges the **screen positions** of your desktop icons, including shortcuts, files, and folders. Their names, contents, and locations on disk stay the same.
+
+Before his first little heist, right-click an empty part of your **Windows desktop**, choose **View**, and turn off **Auto arrange icons**. Mochi leaves that Windows setting alone. Turning off **Align icons to grid** too makes the carrying animation smoother; with it enabled, Windows can snap the icon to its grid. Keep **Show desktop icons** enabled.
+
+Playful Mode and the snack / pat / play cycle keep their own clocks, so you still get all of Mochi’s regular antics! If both are due, the one waiting longest goes first, with a **three-second breather** before the next queued animation. Each clock starts a fresh 3–5 minute wait after its own activity finishes; it never resets the other clock. He also waits for ongoing swims and your interactions to finish. Clicking or dragging Mochi, opening his controls, or turning the mode off interrupts a trip. Pausing ordinary swimming still allows Playful Mode. To stop future pranks, turn off **Playful Mode** and save; completed rearrangements stay where he left them.
+
+**Waiting for the first heist?** Open Settings, enable Playful Mode, and choose **Save & try now** to request a prank straight away. If Mochi cannot start, he explains what needs attention. **Playful status** shows the countdown, the last result, and whether he can see icons on his current monitor. Checking Settings no longer restarts a pending countdown; if an attempt is blocked, he checks again in 30 seconds. The latest status is also saved as `playful-status.txt` beside your settings, without recording filenames.
 
 ## Keeping Mochi up to date
 
@@ -96,7 +119,7 @@ If you have an older copy without **Check for updates**, quit it and replace it 
 
 ## For the curious
 
-The app is written in C# using Windows Forms. Explore the [source and artwork](Project%20Files/source/), [animation guide](Project%20Files/source/ANIMATION-GUIDE.md), [companion test report](Project%20Files/TEST-RESULTS.txt), and [update QA notes](Project%20Files/UPDATES-QA.txt).
+The app is written in C# using Windows Forms. Explore the [source and artwork](Project%20Files/source/), [animation guide](Project%20Files/source/ANIMATION-GUIDE.md), [companion test report](Project%20Files/TEST-RESULTS.txt), [Playful Mode QA notes](Project%20Files/PLAYFUL-MODE-QA.md), and [update QA notes](Project%20Files/UPDATES-QA.txt).
 
 <details>
 <summary>Build Mochi and publish an update</summary>

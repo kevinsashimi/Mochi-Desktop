@@ -153,6 +153,8 @@ namespace MochiDesktop {
             BeginDestinationSwim(target,routeArea);
         }
         void BeginDestinationSwim(Point target,Rectangle routeArea){
+            CancelPlayful();
+            CancelRegularAnimation();
             StopPicking();startupHintAt=-1;gaze.Reset();feeding=null;reaction=null;down=false;dragging=false;
             SwimPath path=new SwimPath(Location,Size,routeArea,random,false,target);
             if(path.Length<.5){Act(0,"I'm already here!",2.5);return;}
@@ -164,7 +166,7 @@ namespace MochiDesktop {
             travelDuration=guided?Math.Max(.8,Math.Min(12,path.Length/130+1)):path.Duration;swimFraction=PointF.Empty;
             FaceTravel(swimTo.X-swimFrom.X);swimGaze.Reset();PointF heading=path.Heading(0);swimGaze.Update(heading.X,heading.Y,Now);
             row=faceRight?1:2;actionStart=Now;actionUntil=0;swimming=true;bubble=guided?PickLine(SwimOverLines,ref lastSwimOverLine):"";bubbleUntil=Now+3;
-            if(guided){edgeWatch.Reset(Now);ScheduleIdleActivity();}Render();
+            if(guided)edgeWatch.Reset(Now);Render();
         }
         public static void VerifyDestination(){
             Point away=new Point(-10000,-10000);
@@ -175,10 +177,10 @@ namespace MochiDesktop {
                 if(menuCount!=1)throw new Exception("Come here menu action missing or duplicated");
                 pet.Pet();pet.ChooseDestination();
                 if(!pet.choosingDestination || pet.reaction!=null || pet.swimming || pet.bubble!=DestinationPrompt)throw new Exception("Destination prompt did not pause other activities");
-                pet.nextIdleActivity=pet.Now;pet.nextSwim=pet.Now;pet.Advance(pet.Now+600,away);
+                pet.nextIdleActivity=pet.Now;double pending=pet.nextIdleActivity;pet.nextSwim=pet.Now;pet.Advance(pet.Now+600,away);
                 if(!pet.choosingDestination || pet.Location!=start || pet.swimming || pet.reaction!=null || pet.feeding!=null || pet.bubble!=DestinationPrompt)throw new Exception("Destination selection was interrupted");
                 pet.CompleteDestination(null);
-                if(pet.choosingDestination || pet.swimming || pet.Location!=start || pet.nextIdleActivity-pet.Now<180)throw new Exception("Destination cancellation changed position or failed to reset wait");
+                if(pet.choosingDestination || pet.swimming || pet.Location!=start || pet.nextIdleActivity!=pending || pet.automaticReadyAt<pet.Now+3)throw new Exception("Destination cancellation changed position, erased a pending turn, or skipped the handoff pause");
                 foreach(Point click in new[]{new Point(area.Left+1,area.Top+1),new Point(area.Right-1,area.Bottom-1),new Point(area.Left+area.Width/2,area.Top+area.Height/2)}){
                     pet.Location=start;pet.ChooseDestination();int last=pet.lastSurprise;pet.CompleteDestination(click);
                     Point target=Destination.Place(click,pet.prefs.Size,area);

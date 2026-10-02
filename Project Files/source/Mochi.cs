@@ -28,6 +28,16 @@ namespace MochiDesktop {
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
                 if (args.Length == 2 && args[0] == "--update-self-test") return UpdateTests.Run(args[1]);
+                if (args.Length == 2 && args[0] == "--playful-self-test") return PlayfulTests.Run(args[1]);
+                if (args.Length == 2 && args[0] == "--playful-preview") { PlayfulPreview.Write(args[1]); return 0; }
+                if (args.Length == 2 && args[0] == "--desktop-icons-status") {
+                    using (IDesktopIcons icons = new WindowsDesktopIcons()) {
+                        DesktopLayout layout = icons.Read();
+                        File.WriteAllText(args[1], "Mochi " + typeof(Companion).Assembly.GetName().Version + "\r\n" +
+                            layout.Status + ": " + layout.Items.Count + " desktop icons. No positions changed.\r\n" + layout.Detail);
+                    }
+                    return 0;
+                }
                 if (args.Length >= 2 && args[0] == "--self-test") return Tests.Run(args[1]);
                 if (args.Length >= 2 && args[0] == "--feed-preview") {FeedingPreview.Write(args[1]);return 0;}
                 if (args.Length >= 2 && args[0] == "--gaze-preview") {GazePreview.Write(args[1]);return 0;}
@@ -61,7 +71,7 @@ namespace MochiDesktop {
 
     sealed class Preferences {
         public int Size = 176, Frequency = 1, X = int.MinValue, Y = int.MinValue, NextFeed, NextPet, NextPlay;
-        public bool Roam = true;
+        public bool Roam = true, PlayfulMode;
         static string FilePath { get { return Path.Combine(Program.DataDirectory,"settings.xml"); } }
         public static Preferences Load(string filePath=null) {
             Preferences p = new Preferences();
@@ -72,6 +82,7 @@ namespace MochiDesktop {
                 p.X = (int?)x.Element("X") ?? int.MinValue;
                 p.Y = (int?)x.Element("Y") ?? int.MinValue;
                 p.Roam = (bool?)x.Element("Roam") ?? true;
+                p.PlayfulMode = (bool?)x.Element("PlayfulMode") ?? false;
                 p.NextFeed = new FeedRotation((int?)x.Element("NextFeed") ?? 0).Next;
                 p.NextPet = new ReactionRotation((int?)x.Element("NextPet") ?? 0,false).Next;
                 p.NextPlay = new ReactionRotation((int?)x.Element("NextPlay") ?? 0,true).Next;
@@ -84,7 +95,7 @@ namespace MochiDesktop {
             try {
                 string target=filePath??FilePath;
                 XElement x = new XElement("Mochi",new XElement("Size",Size),new XElement("Frequency",Frequency),
-                    new XElement("X",X),new XElement("Y",Y),new XElement("Roam",Roam),new XElement("NextFeed",NextFeed),new XElement("NextPet",NextPet),new XElement("NextPlay",NextPlay));
+                    new XElement("X",X),new XElement("Y",Y),new XElement("Roam",Roam),new XElement("PlayfulMode",PlayfulMode),new XElement("NextFeed",NextFeed),new XElement("NextPet",NextPet),new XElement("NextPlay",NextPlay));
                 x.Save(target + ".tmp");
                 if(File.Exists(target)) File.Replace(target+".tmp",target,null); else File.Move(target+".tmp",target);
             } catch { /* A read-only portable folder must not prevent quitting. */ }
@@ -231,7 +242,8 @@ namespace MochiDesktop {
         int lastSurprise=-1;
         bool faceRight;
         static readonly InteractionVariant[] SurpriseVariants=InteractionVariant.All();
-        int nextIdleCategory; double nextIdleActivity;
+        int nextIdleCategory; double nextIdleActivity, automaticReadyAt;
+        bool idleActivityActive;
         readonly GazeMotion gaze=new GazeMotion(); readonly bool simulation;
         readonly GazeMotion swimGaze=new GazeMotion();readonly EdgeWatch edgeWatch=new EdgeWatch();
         SwimPath swimPath;PointF swimFraction;
@@ -254,6 +266,7 @@ namespace MochiDesktop {
             faceRight=random.Next(2)==1;
             BuildMenu();
             ScheduleIdleActivity();
+            SchedulePlayful();
             if(simulation)return;
             using(Bitmap iconBmp=new Bitmap(atlas.Frames[0,0],new Size(48,48))) {
                 IntPtr h=iconBmp.GetHicon(); try {using(Icon raw=Icon.FromHandle(h))trayIcon=(Icon)raw.Clone();}finally{Native.DestroyIcon(h);}
@@ -264,7 +277,7 @@ namespace MochiDesktop {
             Shown+=delegate{Native.KeepBehindApps(Handle);StartWelcome();timer.Start();Render();StartUpdateCheck(false);};
             SetStyle(ControlStyles.StandardDoubleClick,false);
             MouseDown+=OnDown;MouseMove+=OnMove;MouseUp+=OnUp;
-            MouseCaptureChanged+=delegate{if(!Capture && down){down=false;dragging=false;Schedule();ScheduleIdleActivity();}};
+            MouseCaptureChanged+=delegate{if(!Capture && down){down=false;dragging=false;Schedule();PauseAutomaticActivities();}};
             Microsoft.Win32.SystemEvents.DisplaySettingsChanged+=DisplayChanged;
         }
         void BuildMenu(){
@@ -281,18 +294,39 @@ namespace MochiDesktop {
             menu.Items.Add("How to play",null,delegate{Help();});
             AddUpdateMenu();
             menu.Items.Add(new ToolStripSeparator());menu.Items.Add("Quit Mochi",null,delegate{Close();});
-            menu.Opening+=delegate{CancelInteraction();swimming=false;edgeWatch.Reset(Now);ScheduleIdleActivity();pauseItem.Checked=!prefs.Roam;};menu.Closed+=delegate{Schedule();ScheduleIdleActivity();edgeWatch.Reset(Now);};
+            menu.Opening+=delegate{CancelInteraction();swimming=false;edgeWatch.Reset(Now);pauseItem.Checked=!prefs.Roam;};menu.Closed+=delegate{Schedule();PauseAutomaticActivities();edgeWatch.Reset(Now);};
         }
         void Schedule(){int[] lo={45,25,12},hi={90,55,25};nextSwim=Now+random.Next(lo[prefs.Frequency],hi[prefs.Frequency]+1);}
         void ScheduleIdleActivity(){nextIdleActivity=Now+random.Next(180,301);}
+        void PauseAutomaticActivities(){automaticReadyAt=Math.Max(automaticReadyAt,Now+3);}
+        void EndRegularAnimation(){
+            // Only the automatic idle cycle owns this clock. Manual animations and
+            // pranks must leave any pending idle deadline intact.
+            if(idleActivityActive){idleActivityActive=false;ScheduleIdleActivity();}
+            PauseAutomaticActivities();
+        }
+        void CancelRegularAnimation(){
+            if(feeding==null && reaction==null)return;
+            EndRegularAnimation();feeding=null;reaction=null;
+        }
+        bool StartDueActivity(double now){
+            if(Program.TestUi || now<automaticReadyAt || (!simulation && Control.MouseButtons!=MouseButtons.None))return false;
+            bool idleDue=now>=nextIdleActivity, playfulDue=prefs.PlayfulMode && now>=nextPlayful;
+            // Absolute deadlines form a bounded queue: one turn per clock, oldest
+            // first. A Settings "try now" request is an explicit user override.
+            if(idleDue && (!playfulDue || (!playfulRequested && nextIdleActivity<nextPlayful))){StartIdleActivity();return true;}
+            if(playfulDue && BeginPlayful())return true;
+            if(idleDue && !modal){StartIdleActivity();return true;}
+            return false;
+        }
         void StartIdleActivity(){
             // Automatic reactions share the artwork, but leave the manual menu cycles alone.
-            if(nextIdleCategory==0)StartFeeding(SurpriseFeeds[random.Next(SurpriseFeeds.Length)]);
-            else StartReaction(ReactionRotation.PickRandom(random,nextIdleCategory==2));
+            if(nextIdleCategory==0)StartFeeding(SurpriseFeeds[random.Next(SurpriseFeeds.Length)],null,true);
+            else StartReaction(ReactionRotation.PickRandom(random,nextIdleCategory==2),null,true);
             nextIdleCategory=(nextIdleCategory+1)%3;
         }
         void StartWelcome(){Act(0,Introductions[random.Next(Introductions.Length)],4);startupHintAt=Now+4;}
-        void Act(int r,string text,double duration){StopPicking();guidedSwim=false;startupHintAt=-1;gaze.Reset();feeding=null;reaction=null;swimming=false;row=r;actionStart=Now;actionUntil=Now+duration;bubble=text;bubbleUntil=Now+Math.Max(3.5,duration);Schedule();ScheduleIdleActivity();}
+        void Act(int r,string text,double duration){CancelPlayful();CancelRegularAnimation();StopPicking();guidedSwim=false;startupHintAt=-1;gaze.Reset();swimming=false;row=r;actionStart=Now;actionUntil=Now+duration;automaticReadyAt=Math.Max(automaticReadyAt,actionUntil+3);bubble=text;bubbleUntil=Now+Math.Max(3.5,duration);Schedule();}
         void Pet(){edgeWatch.Reset(Now);StartReaction(false);}
         void Play(){edgeWatch.Reset(Now);StartReaction(true);}
         void StartReaction(bool play){
@@ -302,24 +336,30 @@ namespace MochiDesktop {
         }
         void Face(bool right){faceRight=right;}
         void FaceTravel(double dx){if(Math.Abs(dx)>=1)faceRight=dx>0;}
-        void StartReaction(ReactionKind kind,bool? right=null){
+        void StartReaction(ReactionKind kind,bool? right=null,bool automatic=false){
+            CancelPlayful();
+            CancelRegularAnimation();
             StopPicking();
             startupHintAt=-1;
             gaze.Reset();feeding=null;swimming=false;bubble="";bubbleUntil=0;
             reaction=new ReactionSequence(kind,Now,right??(random.Next(2)==1));Face(reaction.FaceRight);
-            actionUntil=Now+reaction.Duration;Save();Schedule();ScheduleIdleActivity();Render();
+            idleActivityActive=automatic;
+            actionUntil=Now+reaction.Duration;Save();Schedule();Render();
         }
         void Feed(){
             edgeWatch.Reset(Now);
             FeedRotation rotation=new FeedRotation(prefs.NextFeed);FeedKind kind=rotation.Take();prefs.NextFeed=rotation.Next;
             StartFeeding(kind);
         }
-        void StartFeeding(FeedKind kind,bool? right=null){
+        void StartFeeding(FeedKind kind,bool? right=null,bool automatic=false){
+            CancelPlayful();
+            CancelRegularAnimation();
             StopPicking();
             startupHintAt=-1;
             gaze.Reset();reaction=null;swimming=false;bubble="";bubbleUntil=0;
             feeding=new FeedSequence(kind,Now,Location,Size,Screen.FromRectangle(Bounds).WorkingArea,right??(random.Next(2)==1));Face(feeding.FaceRight);
-            actionUntil=Now+feeding.Duration;Save();Schedule();ScheduleIdleActivity();Render();
+            idleActivityActive=automatic;
+            actionUntil=Now+feeding.Duration;Save();Schedule();Render();
         }
         void Interact(){
             edgeWatch.Reset(Now);
@@ -332,9 +372,9 @@ namespace MochiDesktop {
             if(variant.Feed.HasValue)StartFeeding(variant.Feed.Value,variant.Right);
             else StartReaction(variant.Reaction.Value,variant.Right);
         }
-        void CancelInteraction(){StopPicking();startupHintAt=-1;if(feeding!=null || reaction!=null){feeding=null;reaction=null;row=0;frame=0;actionUntil=0;actionStart=Now;Schedule();}}
+        void CancelInteraction(){CancelPlayful();StopPicking();startupHintAt=-1;if(feeding!=null || reaction!=null){CancelRegularAnimation();row=0;frame=0;actionUntil=0;actionStart=Now;Schedule();}}
         void OnDown(object s,MouseEventArgs e){
-            if(e.Button==MouseButtons.Left || e.Button==MouseButtons.Right){ScheduleIdleActivity();edgeWatch.Reset(Now);}
+            if(e.Button==MouseButtons.Left || e.Button==MouseButtons.Right)edgeWatch.Reset(Now);
             if(e.Button==MouseButtons.Right){CancelInteraction();swimming=false;menu.Show(Cursor.Position);return;}
             if(e.Button!=MouseButtons.Left)return;
             CancelInteraction();
@@ -348,7 +388,7 @@ namespace MochiDesktop {
         void OnMove(object s,MouseEventArgs e){TrackDrag(Cursor.Position);}
         void TrackDrag(Point p){
             if(!down)return;int dx=p.X-dragMouse.X,dy=p.Y-dragMouse.Y;
-            if(!dragging && Math.Abs(dx)+Math.Abs(dy)>5){feeding=null;reaction=null;dragging=true;bubble=PickLine(DragLines,ref lastDragLine);bubbleUntil=Now+4;}
+            if(!dragging && Math.Abs(dx)+Math.Abs(dy)>5){CancelRegularAnimation();dragging=true;bubble=PickLine(DragLines,ref lastDragLine);bubbleUntil=Now+4;}
             if(dragging)MoveDragged(Motion.Clamp(new Point(dragWindow.X+dx,dragWindow.Y+dy),Size,Screen.FromPoint(p).WorkingArea));
         }
         void MoveDragged(Point position){FaceTravel(position.X-Left);Location=position;row=faceRight?1:2;}
@@ -356,12 +396,14 @@ namespace MochiDesktop {
             if(e.Button!=MouseButtons.Left || !down)return;bool wasDragging=dragging;down=false;dragging=false;Capture=false;
             edgeWatch.Reset(Now);
             if(wasDragging){Act(3,PickLine(DropLines,ref lastDropLine),2.8);Save();}else Interact();
-            Schedule();ScheduleIdleActivity();
+            Schedule();
         }
         void BeginSwim(bool requested){
             if(down || modal || (!requested&&!prefs.Roam))return;
+            if(requested)CancelPlayful();
+            CancelRegularAnimation();
             StopPicking();
-            if(requested){startupHintAt=-1;ScheduleIdleActivity();}
+            if(requested)startupHintAt=-1;
             gaze.Reset();feeding=null;reaction=null;
             Rectangle b=Screen.FromRectangle(Bounds).WorkingArea;
             swimPath=new SwimPath(Location,Size,b,random,edgeWatch.Due);Point target=swimPath.End;
@@ -379,16 +421,17 @@ namespace MochiDesktop {
         void Advance(double now,Point cursor){
             if(simulation)simulatedTime=now;
             if(closing || modal || menu.Visible)return;
+            if(AdvancePlayful(now))return;
             if(choosingDestination){frame=Atlas.FrameAt(0,(now-actionStart)*1000);Render();return;}
             if(startupHintAt>=0 && now>=startupHintAt)Act(0,StartupHint,4);
             if(reaction!=null){
                 if(!reaction.Finished(now)){Render();return;}
-                reaction=null;row=0;frame=0;actionStart=now;actionUntil=now+.4;Schedule();ScheduleIdleActivity();
+                EndRegularAnimation();reaction=null;row=0;frame=0;actionStart=now;actionUntil=now+.4;Schedule();
             }
             if(feeding!=null){
                 Location=Motion.Clamp(feeding.Position(now),Size,Screen.FromRectangle(Bounds).WorkingArea);
                 if(!feeding.Finished(now)){Render();return;}
-                feeding=null;row=0;frame=0;actionStart=now;actionUntil=now+0.4;Schedule();ScheduleIdleActivity();Save();
+                EndRegularAnimation();feeding=null;row=0;frame=0;actionStart=now;actionUntil=now+0.4;Schedule();Save();
             }
             if(now>bubbleUntil && bubble.Length>0){bubble="";}
             if(!down && prefs.Roam)edgeWatch.Update(Location,Size,Screen.FromRectangle(Bounds).WorkingArea,now);
@@ -400,25 +443,26 @@ namespace MochiDesktop {
                 PointF heading=swimPath.Heading(t);swimGaze.Update(heading.X,heading.Y,now);
                 if(now>=travelStart+travelDuration){
                     bool arrived=guidedSwim;swimming=false;guidedSwim=false;Location=swimTo;
+                    PauseAutomaticActivities();
                     if(arrived)Act(0,PickLine(ArrivalLines,ref lastArrivalLine),2.5);else Schedule();Save();
                 }
             }
             if(!swimming&&!down&&now>=actionUntil){
-                // Finish the current swim first. Gaze and ordinary roaming never reset this clock.
-                if(!Program.TestUi && now>=nextIdleActivity){StartIdleActivity();return;}
+                if(StartDueActivity(now))return;
                 Point c=cursor;Rectangle sprite=Renderer.SpriteRect(prefs.Size);Point center=new Point(Left+sprite.Left+sprite.Width/2,Top+sprite.Top+sprite.Height/2);
                 double dx=c.X-center.X,dy=c.Y-center.Y,dist=Math.Sqrt(dx*dx+dy*dy);
                 if(dist>65 && dist<390 && Screen.FromPoint(c).DeviceName==Screen.FromRectangle(Bounds).DeviceName){
                     gaze.Update(dx,dy,now);row=9+gaze.Direction/8;frame=gaze.Direction%8;
                 }else {gaze.Reset();row=0;}
                 // A parked pointer is not an interaction. Scheduled swims take priority over looking.
-                if(prefs.Roam && !Program.TestUi && (now>=nextSwim || edgeWatch.Due))BeginSwim(false);
+                if(prefs.Roam && !Program.TestUi && now>=automaticReadyAt && (now>=nextSwim || edgeWatch.Due))BeginSwim(false);
             }
             else gaze.Reset();
             if(row<9)frame=Atlas.FrameAt(row,(now-actionStart)*1000);
             Render();
         }
         Bitmap RenderFrame(){
+            if(playful!=null)return PlayfulRenderer.Draw(atlas,playful,Now,prefs.Size);
             return reaction!=null?ReactionRenderer.Draw(atlas,reaction,Now,prefs.Size):feeding!=null?FeedRenderer.Draw(atlas,feeding.Sample(Now),prefs.Size,feeding.Speech(Now)):
                 swimming?GazeRenderer.Draw(atlas,swimGaze.Sample(Now),prefs.Size,bubble,true,swimFraction):
                 gaze.Active?GazeRenderer.Draw(atlas,gaze.Sample(Now),prefs.Size,bubble):
@@ -430,14 +474,15 @@ namespace MochiDesktop {
             try{Native.SetBitmap(Handle,next,Location);}catch{next.Dispose();throw;}
             if(canvas!=null)canvas.Dispose();canvas=next;
         }
-        void DisplayChanged(object sender,EventArgs e){if(IsDisposed)return;try{BeginInvoke((Action)delegate{StopPicking();swimming=false;guidedSwim=false;Location=Motion.Clamp(Location,Size,Screen.FromRectangle(Bounds).WorkingArea);Schedule();});}catch(InvalidOperationException){} }
+        void DisplayChanged(object sender,EventArgs e){if(IsDisposed)return;try{BeginInvoke((Action)delegate{CancelPlayful();StopPicking();swimming=false;guidedSwim=false;Location=Motion.Clamp(Location,Size,Screen.FromRectangle(Bounds).WorkingArea);Schedule();SchedulePlayful();});}catch(InvalidOperationException){} }
         void Save(){if(simulation)return;prefs.X=Left;prefs.Y=Top;prefs.Save();}
         void OpenSettings(){
+            bool wasEnabled=prefs.PlayfulMode,tryPlayful=false;
             CancelInteraction();swimming=false;modal=true;
-            try{using(SettingsDialog d=new SettingsDialog(prefs)){if(d.ShowDialog()==DialogResult.OK){Size=Renderer.WindowSize(prefs.Size);Location=Motion.Clamp(Location,Size,Screen.FromRectangle(Bounds).WorkingArea);Save();}}}
-            finally{modal=false;Schedule();ScheduleIdleActivity();edgeWatch.Reset(Now);}
+            try{using(SettingsDialog d=new SettingsDialog(prefs,GetPlayfulStatus)){if(d.ShowDialog()==DialogResult.OK){Size=Renderer.WindowSize(prefs.Size);Location=Motion.Clamp(Location,Size,Screen.FromRectangle(Bounds).WorkingArea);tryPlayful=d.TryPlayfulRequested;Save();}}}
+            finally{modal=false;Schedule();PauseAutomaticActivities();ApplyPlayfulSettings(wasEnabled,tryPlayful);edgeWatch.Reset(Now);}
         }
-        void Help(){swimming=false;modal=true;try{MessageBox.Show("Click Mochi for a random petting, play, or snack animation.\nDrag Mochi to move to another spot or monitor.\nMove your pointer nearby and Mochi will look toward it.\n\nRight-click Mochi or the tray icon to choose petting, feeding, play, swimming, settings, or Quit.\nClick the tray icon to open the controls.\nChoose Come here, then click a spot for Mochi to swim to.\nPress Escape or right-click to cancel choosing a spot.\n\nEvery 3-5 quiet minutes, Mochi takes turns snacking, enjoying a pat, and playing, with a random animation each time. Interacting with Mochi restarts the wait.\n\nMochi occasionally swims within the current screen.\nSettings lets you pause swimming or change its frequency, size, and Windows startup.\n\nMochi runs locally. Only update checks and downloads use the internet. No account or microphone is needed.","Hello, I'm Mochi",MessageBoxButtons.OK,MessageBoxIcon.Information);}finally{modal=false;Schedule();ScheduleIdleActivity();}}
+        void Help(){swimming=false;modal=true;try{MessageBox.Show("Click Mochi for a random petting, play, or snack animation.\nDrag Mochi to move to another spot or monitor.\nMove your pointer nearby and Mochi will look toward it.\n\nRight-click Mochi or the tray icon to choose petting, feeding, play, swimming, settings, or Quit.\nClick the tray icon to open the controls.\nChoose Come here, then click a spot for Mochi to swim to.\nPress Escape or right-click to cancel choosing a spot.\n\nEvery 3-5 minutes, Mochi takes turns snacking, enjoying a pat, and playing. Playful Mode has its own clock. Due animations wait their turn, with a 3-second pause between them.\n\nMochi occasionally swims within the current screen.\nSettings lets you pause swimming or change its frequency, size, and Windows startup.\n\nEnable Playful Mode in Settings for a little mischief: every 3-5 minutes, Mochi borrows a desktop icon and swims it to a new spot. Files stay in place. Turn off Auto arrange icons on your desktop to allow this.\n\nMochi runs locally. Only update checks and downloads use the internet. No account or microphone is needed.","Hello, I'm Mochi",MessageBoxButtons.OK,MessageBoxIcon.Information);}finally{modal=false;Schedule();PauseAutomaticActivities();}}
         protected override void WndProc(ref Message m){
             if(m.Msg==0x46 && m.LParam!=IntPtr.Zero){ // WM_WINDOWPOSCHANGING
                 Native.WindowPosition position=(Native.WindowPosition)Marshal.PtrToStructure(m.LParam,typeof(Native.WindowPosition));
@@ -453,9 +498,9 @@ namespace MochiDesktop {
             }
             base.WndProc(ref m);
         }
-        protected override void OnFormClosing(FormClosingEventArgs e){closing=true;StopUpdateChecks();StopPicking();timer.Stop();Save();base.OnFormClosing(e);}
+        protected override void OnFormClosing(FormClosingEventArgs e){closing=true;CancelPlayful();StopUpdateChecks();StopPicking();timer.Stop();Save();base.OnFormClosing(e);}
         protected override void Dispose(bool disposing){
-            if(disposing && !resourcesDisposed){resourcesDisposed=true;StopUpdateChecks();StopPicking();Microsoft.Win32.SystemEvents.DisplaySettingsChanged-=DisplayChanged;
+            if(disposing && !resourcesDisposed){resourcesDisposed=true;CancelPlayful();StopUpdateChecks();StopPicking();Microsoft.Win32.SystemEvents.DisplaySettingsChanged-=DisplayChanged;
                 timer.Dispose();if(tray!=null){tray.Visible=false;tray.Dispose();}if(trayIcon!=null)trayIcon.Dispose();if(menu!=null)menu.Dispose();if(canvas!=null)canvas.Dispose();atlas.Dispose();}
             base.Dispose(disposing);
         }
@@ -657,6 +702,10 @@ namespace MochiDesktop {
                 if(!pet.swimming || pet.feeding!=null || pet.reaction!=null)throw new Exception("Idle activity interrupted swim");
                 Point destination=pet.swimTo;
                 pet.Advance(swimEnd,new Point(destination.X+pet.Width/2,destination.Y+pet.Height/2));
+                if(pet.swimming || pet.feeding!=null || pet.nextIdleActivity!=originalDue)throw new Exception("Swim finish discarded a pending idle turn or skipped its pause");
+                pet.Advance(swimEnd+2.99,away);
+                if(pet.feeding!=null || pet.reaction!=null)throw new Exception("Idle activity skipped the 3-second swim handoff");
+                pet.Advance(swimEnd+3,away);
                 if(pet.swimming || pet.feeding==null || pet.nextIdleCategory!=1)throw new Exception("Swimming or parked pointer starved idle cycle");
                 pet.Advance(pet.feeding.Started+pet.feeding.Duration,away);
                 pet.prefs.Roam=false;
@@ -669,25 +718,26 @@ namespace MochiDesktop {
                 pet.Advance(originalDue,nearby);
                 if(pet.reaction==null || pet.reaction.IsPlay || pet.nextIdleCategory!=2)throw new Exception("Looking blocked idle petting");
 
-                // Manual requests win a simultaneous deadline, and finish before a new full wait begins.
+                // Manual requests win, while an already-due automatic turn keeps its place.
                 pet.CancelInteraction();int category=pet.nextIdleCategory;
                 pet.nextIdleActivity=pet.Now;
                 pet.OnDown(pet,new MouseEventArgs(MouseButtons.Left,1,0,0,0));pet.OnUp(pet,new MouseEventArgs(MouseButtons.Left,1,0,0,0));
                 if(pet.nextIdleCategory!=category || (pet.feeding==null && pet.reaction==null))throw new Exception("Idle cycle overrode click");
                 pet.Pet();ReactionSequence manual=pet.reaction;
-                pet.nextIdleActivity=pet.Now+.1;pet.Advance(pet.Now+.2,away);
+                pet.nextIdleActivity=pet.Now+.1;double pending=pet.nextIdleActivity;pet.Advance(pet.Now+.2,away);
                 if(pet.reaction!=manual || pet.nextIdleCategory!=category)throw new Exception("Idle cycle interrupted manual reaction");
                 pet.Advance(manual.Started+manual.Duration,away);
-                if(pet.nextIdleActivity-pet.Now<180 || pet.nextIdleActivity-pet.Now>300)throw new Exception("Manual reaction failed to restart idle wait");
+                if(pet.nextIdleActivity!=pending)throw new Exception("Manual reaction erased a pending idle turn");
                 pet.OnDown(pet,new MouseEventArgs(MouseButtons.Left,1,0,0,0));pet.OnUp(pet,new MouseEventArgs(MouseButtons.Left,1,0,0,0));
-                if(pet.nextIdleCategory!=category || pet.nextIdleActivity-pet.Now<180)throw new Exception("Single-click changed idle category or failed to reset wait");
+                if(pet.nextIdleCategory!=category || pet.nextIdleActivity!=pending)throw new Exception("Single-click changed the pending idle category or deadline");
                 pet.CancelInteraction();pet.BeginSwim(true);
-                if(pet.nextIdleActivity-pet.Now<180 || pet.nextIdleCategory!=category)throw new Exception("Manual swim failed to reset idle wait");
+                if(pet.nextIdleActivity!=pending || pet.nextIdleCategory!=category)throw new Exception("Manual swim erased a pending idle turn");
                 pet.swimming=false;pet.nextIdleActivity=pet.Now+1;pet.down=true;pet.dragging=true;
+                pending=pet.nextIdleActivity;
                 pet.Advance(pet.Now+600,away);
                 if(pet.feeding!=null || pet.reaction!=null || pet.nextIdleCategory!=category)throw new Exception("Idle cycle interrupted dragging");
                 pet.OnUp(pet,new MouseEventArgs(MouseButtons.Left,1,0,0,0));
-                if(pet.nextIdleActivity-pet.Now<180 || pet.down)throw new Exception("Drag release failed to restart idle wait");
+                if(pet.nextIdleActivity!=pending || pet.down)throw new Exception("Drag release changed the pending idle deadline");
                 pet.modal=true;pet.Advance(pet.Now+600,away);
                 if(pet.feeding!=null || pet.reaction!=null || pet.nextIdleCategory!=category)throw new Exception("Idle cycle interrupted controls");
                 pet.modal=false;pet.ScheduleIdleActivity();
@@ -703,20 +753,28 @@ namespace MochiDesktop {
     }
 
     sealed class SettingsDialog : Form {
-        public SettingsDialog(Preferences prefs){
-            Text="Mochi Settings";ClientSize=new Size(405,358);FormBorderStyle=FormBorderStyle.FixedDialog;MaximizeBox=false;MinimizeBox=false;StartPosition=FormStartPosition.CenterScreen;TopMost=false;
+        public bool TryPlayfulRequested { get; private set; }
+        public SettingsDialog(Preferences prefs,Func<string> playfulStatus=null){
+            Text="Mochi Settings";ClientSize=new Size(405,470);FormBorderStyle=FormBorderStyle.FixedDialog;MaximizeBox=false;MinimizeBox=false;StartPosition=FormStartPosition.CenterScreen;TopMost=false;
             BackColor=Color.FromArgb(245,250,253);Font=new Font("Segoe UI",10);
             Label title=new Label{Text="A little ocean on your desktop",Location=new Point(23,20),Size=new Size(365,30),Font=new Font("Segoe UI Semibold",14),ForeColor=Color.FromArgb(27,66,91)};
             CheckBox startup=new CheckBox{Text="Start with Windows",Checked=Startup.Enabled,Location=new Point(25,70),AutoSize=true};
             CheckBox roam=new CheckBox{Text="Swim around occasionally",Checked=prefs.Roam,Location=new Point(25,106),AutoSize=true};
-            Label sl=new Label{Text="Mochi's size",Location=new Point(25,158),AutoSize=true};
-            ComboBox size=new ComboBox{DropDownStyle=ComboBoxStyle.DropDownList,Location=new Point(173,154),Width=199};size.Items.AddRange(new object[]{"Small","Medium","Large"});size.SelectedIndex=prefs.Size==144?0:prefs.Size==224?2:1;
-            Label fl=new Label{Text="Swim frequency",Location=new Point(25,201),AutoSize=true};
-            ComboBox freq=new ComboBox{DropDownStyle=ComboBoxStyle.DropDownList,Location=new Point(173,197),Width=199};freq.Items.AddRange(new object[]{"Calm (45-90 seconds)","Balanced (25-55 seconds)","Playful (12-25 seconds)"});freq.SelectedIndex=prefs.Frequency;
-            Label hint=new Label{Text="Turn off Start with Windows for manual startup.\nMochi stays on this computer and runs offline.",Location=new Point(25,244),Size=new Size(355,44),ForeColor=Color.FromArgb(80,103,117),Font=new Font("Segoe UI",9)};
-            Button save=new Button{Text="Save",Location=new Point(272,307),Size=new Size(101,32)};Button cancel=new Button{Text="Cancel",Location=new Point(160,307),Size=new Size(101,32),DialogResult=DialogResult.Cancel};
-            save.Click+=delegate{try{if(startup.Checked!=Startup.Enabled)Startup.SetEnabled(startup.Checked);prefs.Roam=roam.Checked;prefs.Size=new[]{144,176,224}[size.SelectedIndex];prefs.Frequency=freq.SelectedIndex;DialogResult=DialogResult.OK;Close();}catch(Exception ex){MessageBox.Show("Couldn't update Windows startup. Your other settings haven't changed.\n\n"+ex.Message,"Mochi Settings",MessageBoxButtons.OK,MessageBoxIcon.Warning);}};
-            Controls.AddRange(new Control[]{title,startup,roam,sl,size,fl,freq,hint,save,cancel});AcceptButton=save;CancelButton=cancel;
+            CheckBox playfulMode=new CheckBox{Text="Playful Mode (mischievous icons)",Name="PlayfulModeToggle",Checked=prefs.PlayfulMode,Location=new Point(25,142),AutoSize=true};
+            Label playfulHint=new Label{Text="Every 3-5 minutes, borrow and rearrange an icon.\nFiles stay in place. Turn off desktop Auto arrange\nicons; turn off Align icons to grid for smooth swims.",Location=new Point(25,174),Size=new Size(355,56),ForeColor=Color.FromArgb(80,103,117),Font=new Font("Segoe UI",9)};
+            Label sl=new Label{Text="Mochi's size",Location=new Point(25,246),AutoSize=true};
+            ComboBox size=new ComboBox{DropDownStyle=ComboBoxStyle.DropDownList,Location=new Point(173,242),Width=199};size.Items.AddRange(new object[]{"Small","Medium","Large"});size.SelectedIndex=prefs.Size==144?0:prefs.Size==224?2:1;
+            Label fl=new Label{Text="Swim frequency",Location=new Point(25,289),AutoSize=true};
+            ComboBox freq=new ComboBox{DropDownStyle=ComboBoxStyle.DropDownList,Location=new Point(173,285),Width=199};freq.Items.AddRange(new object[]{"Calm (45-90 seconds)","Balanced (25-55 seconds)","Energetic (12-25 seconds)"});freq.SelectedIndex=prefs.Frequency;
+            Label hint=new Label{Text="Turn off Start with Windows for manual startup.\nMochi stays on this computer and runs offline.",Location=new Point(25,332),Size=new Size(355,44),ForeColor=Color.FromArgb(80,103,117),Font=new Font("Segoe UI",9)};
+            Button save=new Button{Text="Save",Location=new Point(272,418),Size=new Size(101,32)};Button cancel=new Button{Text="Cancel",Location=new Point(160,418),Size=new Size(101,32),DialogResult=DialogResult.Cancel};
+            Button status=new Button{Text="Playful status",Name="PlayfulStatus",Location=new Point(25,380),Size=new Size(153,30)};
+            status.Click+=delegate{MessageBox.Show(playfulStatus==null?"Open Settings from Mochi to check the desktop.":playfulStatus(),"Playful Mode status",MessageBoxButtons.OK,MessageBoxIcon.Information);};
+            Button tryPlayful=new Button{Text="Save && try now",Name="TryPlayfulNow",Enabled=playfulMode.Checked,Location=new Point(190,380),Size=new Size(183,30)};
+            playfulMode.CheckedChanged+=delegate{tryPlayful.Enabled=playfulMode.Checked;};
+            tryPlayful.Click+=delegate{TryPlayfulRequested=true;save.PerformClick();};
+            save.Click+=delegate{try{if(startup.Checked!=Startup.Enabled)Startup.SetEnabled(startup.Checked);prefs.Roam=roam.Checked;prefs.PlayfulMode=playfulMode.Checked;prefs.Size=new[]{144,176,224}[size.SelectedIndex];prefs.Frequency=freq.SelectedIndex;DialogResult=DialogResult.OK;Close();}catch(Exception ex){MessageBox.Show("Couldn't update Windows startup. Your other settings haven't changed.\n\n"+ex.Message,"Mochi Settings",MessageBoxButtons.OK,MessageBoxIcon.Warning);}};
+            Controls.AddRange(new Control[]{title,startup,roam,playfulMode,playfulHint,sl,size,fl,freq,hint,status,tryPlayful,save,cancel});AcceptButton=save;CancelButton=cancel;
         }
     }
 
@@ -781,6 +839,8 @@ namespace MochiDesktop {
             try{
                 if(UpdateTests.Run(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(path)),"update-test-results.txt"))!=0)
                     throw new Exception("Updater tests failed; see update-test-results.txt.");
+                if(PlayfulTests.Run(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(path)),"playful-test-results.txt"))!=0)
+                    throw new Exception("Playful Mode tests failed; see playful-test-results.txt.");
                 Check(Motion.Direction(0,-1)==0,"up cardinal");Check(Motion.Direction(1,0)==4,"right cardinal");Check(Motion.Direction(0,1)==8,"down cardinal");Check(Motion.Direction(-1,0)==12,"left cardinal");
                 for(int i=0;i<16;i++){double a=i*Math.PI/8;Check(Motion.Direction(Math.Sin(a),-Math.Cos(a))==i,"direction mapping "+i);}
                 Rectangle monitor=new Rectangle(-1920,-100,1920,1080);Size size=new Size(260,280);
