@@ -1,20 +1,24 @@
-PASS - Idle activity cycle update, 2026-09-30.
+PASS - Idle Activities frequency update, Mochi 1.1.5, 2026-10-04 (Asia/Singapore).
 
-Mochi waits a random 180-300 seconds, then cycles feeding -> petting -> play.
-Each category chooses uniformly from its own existing animations: 4 feeding, 5 petting, 4 play.
-The next wait begins when an animation finishes. Each launch begins with feeding.
-Manual interaction restarts the wait without changing the next idle category.
+Mochi waits a random 60-180 seconds, then cycles feeding -> petting -> play.
+This frequency applies whether Playful Mode is enabled or disabled.
+Each category chooses from its existing animations: 5 feeding, 6 petting, 5 play.
+The next wait begins when its automatic animation finishes. Each launch begins with feeding.
+Manual interactions preserve pending deadlines and take priority over automatic activities.
 Normal swimming and pointer-following do not reset the idle timer. Due activities wait for an underway swim to finish.
-Pausing swimming still permits idle activities. Manual menu cycles and double-click selection remain independent.
+Playful Mode has its own 180-300 second clock. The oldest due turn runs first, with a three-second handoff.
+Pausing swimming still permits Idle Activities. Manual menu rotations and single-click selection remain independent.
 
 Verified through the companion's actual timer logic with seeded randomness and simulated elapsed time:
-- 100 full category cycles, reaching every one of the 13 animations.
-- Varied 180-300 second waits, no early starts, complete animation playback, and category wraparound.
+- 100 full category cycles, reaching every one of the 16 animations.
+- Varied 60-180 second waits, no early starts, complete animation playback, and category wraparound.
 - Automatic swim completion before a due activity, including a cursor parked over Mochi.
-- Pointer-following does not defer idle activities.
-- Pending clicks, manual animations, double clicks, requested swims, dragging, and modal controls retain priority.
-- Manual feed/pet/play counters and the last double-click choice are unchanged by automatic activities.
-- Long timer gaps produce one activity, with a full wait afterward instead of a backlog.
+- Pointer-following does not defer Idle Activities.
+- Pending clicks, manual animations, requested swims, dragging, and modal controls retain priority.
+- Manual feed/pet/play counters and the last single-click choice are unchanged by automatic activities.
+- Long timer gaps retain one pending turn per stream, with fresh waits afterward instead of a backlog.
+- Two simulated hours with Playful Mode enabled: every category plays, deadlines remain independent, and automatic animations do not overlap or skip the three-second pause.
 
-The complete existing animation, gaze, screen-boundary, preference, roaming, and double-click checks also pass. Build completed without warnings.
-Artwork is unchanged. Native automated live mouse testing of the nonactivating desktop pet remains unavailable; timing was validated through deterministic simulation rather than hours of wall-clock waiting.
+All 20 companion, updater, and Playful Mode self-test groups passed under Wine.
+Settings UI smoke checks confirmed the new version and a regular-activity countdown within three minutes.
+Artwork is unchanged. Timing was validated through deterministic simulation; native Windows desktop behavior still needs a live check of this version.

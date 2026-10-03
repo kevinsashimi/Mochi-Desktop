@@ -1,6 +1,6 @@
-# Playful Mode QA — 1.1.4
+# Playful Mode QA — 1.1.5
 
-Verified in the cloud on 2 October 2026 (Asia/Singapore) with Mono 6.12, Wine 10 / Wine Mono 9.4, and a 1920×1080 Xvfb display. **Live Windows Explorer icon movement has not been verified in this environment.**
+Verified in the cloud on 4 October 2026 (Asia/Singapore) with Mono 6.12, Wine 10 / Wine Mono 9.4, and a 1920×1080 Xvfb display. **Live Windows Explorer icon movement has not been verified in this environment.**
 
 ## Behavior
 
@@ -9,7 +9,7 @@ Verified in the cloud on 2 October 2026 (Asia/Singapore) with Mono 6.12, Wine 10
 - Only desktop icon coordinates change. File names, contents, and filesystem locations are untouched. Mochi does not change Windows' Auto arrange or grid settings.
 - Manual interactions interrupt trips. An unfinished move is restored when the icon is still at Mochi's last position and its original cell is available. User moves and completed drops are preserved.
 - Hidden icons, Auto arrange, an unavailable Shell view, or no suitable free destination cause the attempt to be skipped. Resume after a long pause does not queue multiple pranks.
-- Checking controls or saving unchanged Settings preserves the pending countdown. Blocked attempts retry after 30 seconds. Feeding, petting, play, and swimming finish before another automatic turn starts. Pranks and the regular feed/pet/play cycle have independent deadlines; the oldest due turn runs first, with a three-second handoff. Manual interactions preserve pending deadlines. Each stream reschedules only itself on completion.
+- Checking controls or saving unchanged Settings preserves the pending countdown. Blocked attempts retry after 30 seconds. Feeding, petting, play, and swimming finish before another automatic turn starts. Pranks (180–300 seconds) and Idle Activities (feed/pet/play, 60–180 seconds) have independent deadlines; the oldest due turn runs first, with a three-second handoff. Manual interactions preserve pending deadlines. Each stream reschedules only itself on completion.
 - **Playful status** in Settings reads the current desktop availability, current-monitor icon count, pending countdown, and last result. Native connection errors include the failed operation and HRESULT. `playful-status.txt` beside the preferences stores the latest result without icon identities or filenames.
 - **Save & try now** requires the enabled checkbox, saves preferences, closes Settings, and requests a prank after one second. A blocked manual attempt explains the reason in a dialog. No diagnostic or test action is added to the right-click menus.
 - Clicking elsewhere no longer cancels an active trip; clicks on Mochi or the selected icon still interrupt it. The previous icon can be selected again when alternatives have no usable route or artwork.
@@ -30,7 +30,7 @@ The staged executable passed `--self-test` with exit code 0: ten companion group
 
 A separate UI smoke check launched Settings, enabled the mode, saved, reopened Settings through the second-instance IPC path, disabled the mode, and confirmed both saved values without an application error. The [settings screenshot](previews/playful-mode-settings.png) shows the enabled checkbox.
 
-The 1.1.4 UI check exercised **Save & try now**, verified an immediate native-failure explanation under Wine, reopened **Playful status**, and confirmed it displayed a 29-second retry countdown rather than a reset 3–5 minute wait, together with the independent regular-cycle countdown and the three-second queue explanation. Disabling the mode still persisted correctly. The Windows-specific failure shown by Wine was `Creating ShellWindows: COMException (0x80040154)`; this is an environment limitation, not evidence of the cause on a user's Windows PC.
+The 1.1.5 UI check exercised **Save & try now**, verified an immediate native-failure explanation under Wine, reopened **Playful status**, and confirmed it displayed a 29-second retry countdown rather than a reset 3–5 minute wait, together with a 142-second Idle Activities countdown and the three-second queue explanation. Disabling the mode still persisted correctly. The Windows-specific failure shown by Wine was `Creating ShellWindows: COMException (0x80040154)`; this is an environment limitation, not evidence of the cause on a user's Windows PC.
 
 Version 1.1.3 addressed the reported `Getting the active desktop view: InvalidCastException (0x80004002)` connection failure. `QueryActiveShellView` now returns the SDK's `IShellView` type, and the window handle is read through that interface's inherited `GetWindow` slot. The old separate `IOleWindow` cast is removed. Browser, active-view, folder-view, and window-handle checks now have distinct diagnostic labels; the old label covered several operations. The fixture reproduces a rejected legacy interface query. The user has confirmed that icon stealing now works on their Windows PC; the broader native matrix below remains pending.
 
@@ -67,4 +67,4 @@ The status probe reads availability and icon count only. It neither changes posi
 6. During a trip, move/delete the selected sample icon, change icon size, enable Auto arrange, hide desktop icons, restart Explorer, or change display configuration. Confirm Mochi stops without moving a different icon or disrupting the desktop.
 7. Pause ordinary swimming and confirm pranks continue. Disable Playful Mode and confirm no further pranks occur. Suspend/resume Windows and confirm there is no burst of overdue trips.
 
-Publish a tested `Mochi.exe` and its generated `Project Files/update.xml` together. The root executable is version 1.1.4; the manifest records its exact size and SHA-256.
+Publish a tested `Mochi.exe` and its generated `Project Files/update.xml` together. The root executable is version 1.1.5; the manifest records its exact size and SHA-256.

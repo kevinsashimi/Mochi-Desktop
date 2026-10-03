@@ -344,7 +344,7 @@ namespace MochiDesktop {
                 }
                 PlayfulTests.Check(QueueActivity(pet)==0,"first queued turn did not finish");
                 double ended=pet.Now,ownNext=order==0?pet.nextPlayful:pet.nextIdleActivity;
-                PlayfulTests.Check(ownNext-ended>=180 && ownNext-ended<=300,"completed turn did not restart only its own clock");
+                PlayfulTests.Check(ownNext-ended>=(order==0?180:60) && ownNext-ended<=(order==0?300:180),"completed turn did not restart only its own clock");
                 pet.prefs.Roam=true;pet.nextSwim=ended;
                 pet.Advance(ended+2.99,away);
                 PlayfulTests.Check(QueueActivity(pet)==0,"roaming or queued animation invaded the three-second pause");
@@ -361,7 +361,7 @@ namespace MochiDesktop {
                 pet.Location=new Point(area.Left+300,area.Top+100);
                 pet.prefs.NextFeed=3;pet.prefs.NextPet=4;pet.prefs.NextPlay=2;pet.SchedulePlayful();
                 int[] counts=new int[5];int previous=0;double lastEnd=Double.NegativeInfinity;
-                // Let the real random 3-5 minute clocks run for two simulated hours.
+                // Run the 1-3 minute idle and 3-5 minute prank clocks for two simulated hours.
                 for(double now=0;now<=7200;now+=.25) {
                     double idleBefore=pet.nextIdleActivity,prankBefore=pet.nextPlayful;
                     pet.Advance(now,away);int active=QueueActivity(pet);
@@ -400,9 +400,10 @@ namespace MochiDesktop {
                 end=pet.reaction.Started+pet.reaction.Duration;pet.Advance(end,away);pet.Advance(end+3,away);
                 PlayfulTests.Check(pet.playful==null && QueueActivity(pet)==0,"disabled queued prank still ran");
                 // After a long suspension, at most one pending turn per clock is
-                // retained, rather than replaying every missed 3-5 minute interval.
+                // retained, rather than replaying every missed interval.
                 pet.prefs.PlayfulMode=true;pet.ApplyPlayfulSettings(false,false);pet.Advance(pet.Now+36000,away);
-                int started=QueueActivity(pet),transitions=0;double until=pet.Now+100;
+                // Observe both queued turns within the minimum 60-second fresh idle wait.
+                int started=QueueActivity(pet),transitions=0;double until=pet.Now+59;
                 PlayfulTests.Check(started!=0,"long gap lost both pending turns");
                 for(double now=pet.Now+.1;now<until;now+=.1) {
                     pet.Advance(now,away);int active=QueueActivity(pet);

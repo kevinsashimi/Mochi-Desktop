@@ -53,7 +53,7 @@ Try these three menu favorites:
 - **Pet Mochi:** cheek nuzzles, happy wiggles, cozy sways, high flippers, flipper hugs, and nose boops.
 - **Play together:** barrel rolls, backflips, double hops, fin dances, and bubble surfing.
 
-Mochi also entertains himself. Every **3–5 minutes**, he takes a snack break, then later enjoys a pat, then plays. The cycle repeats with a fresh wait after each activity. If he is busy, his next activity waits its turn.
+Mochi also entertains himself with **Idle Activities**. Every **1–3 minutes**, he takes a snack break, then later enjoys a pat, then plays. The cycle repeats with a fresh wait after each activity. If he is busy, his next activity waits its turn.
 
 ## 3. Send him on a little adventure
 
@@ -97,7 +97,7 @@ The previews use a sample icon. In the app, Mochi rearranges the **screen positi
 
 Before his first little heist, right-click an empty part of your **Windows desktop**, choose **View**, and turn off **Auto arrange icons**. Mochi leaves that Windows setting alone. Turning off **Align icons to grid** too makes the carrying animation smoother; with it enabled, Windows can snap the icon to its grid. Keep **Show desktop icons** enabled.
 
-Playful Mode and the snack / pat / play cycle keep their own clocks, so you still get all of Mochi’s regular antics! If both are due, the one waiting longest goes first, with a **three-second breather** before the next queued animation. Each clock starts a fresh 3–5 minute wait after its own activity finishes; it never resets the other clock. He also waits for ongoing swims and your interactions to finish. Clicking or dragging Mochi, opening his controls, or turning the mode off interrupts a trip. Pausing ordinary swimming still allows Playful Mode. To stop future pranks, turn off **Playful Mode** and save; completed rearrangements stay where he left them.
+Playful Mode and the snack / pat / play cycle keep their own clocks, so you still get all of Mochi’s regular antics! If both are due, the one waiting longest goes first, with a **three-second breather** before the next queued animation. After each activity finishes, Idle Activities wait **1–3 minutes** and Playful Mode waits **3–5 minutes**. Each clock keeps its own countdown. He also waits for ongoing swims and your interactions to finish. Clicking or dragging Mochi, opening his controls, or turning the mode off interrupts a trip. Pausing ordinary swimming still allows Playful Mode. To stop future pranks, turn off **Playful Mode** and save; completed rearrangements stay where he left them.
 
 **Waiting for the first heist?** Open Settings, enable Playful Mode, and choose **Save & try now** to request a prank straight away. If Mochi cannot start, he explains what needs attention. **Playful status** shows the countdown, the last result, and whether he can see icons on his current monitor. Checking Settings no longer restarts a pending countdown; if an attempt is blocked, he checks again in 30 seconds. The latest status is also saved as `playful-status.txt` beside your settings, without recording filenames.
 
