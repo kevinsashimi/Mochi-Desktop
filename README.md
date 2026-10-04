@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="Project%20Files/previews/mochi-header.png" alt="Mochi, a smiling spotted whale shark, swimming through a sunlit blue ocean" width="900">
+</p>
+
 # Mochi Desktop 🦈
 
 **A little whale shark. A little company. A happier desktop.**
@@ -26,7 +30,9 @@ There are **16 feeding, petting, and play routines**, each with left- and right-
 
 ## 1. Bring Mochi home
 
-You need a **Windows PC with .NET Framework**. There is no installer to work through and nothing to compile.
+You need a **Windows PC with .NET Framework**. Modern Windows PCs, including Windows 10 and 11, come with a version of Microsoft .NET Framework pre-installed by default.
+
+You don’t need to install or compile anything—Mochi is ready to swim right out of the box! 🌊
 
 1. **[Download Mochi.exe](https://github.com/kevinsashimi/Mochi-Desktop/raw/refs/heads/main/Mochi.exe).** This single file includes Mochi and his artwork.
 2. **Give him a home.** Save the file in a folder you can write to and plan to keep, such as `Documents\Mochi`. This lets the app save your preferences and install updates.
@@ -49,6 +55,10 @@ Start with a click, then explore his menu:
 
 Changed your mind? Click outside the menu or press **Escape** to close it.
 
+**A quick tour of his menu:** right-click, have a look around, then give him a little pat.
+
+<img src="Project%20Files/previews/guide-menu.gif" alt="Right-click Mochi to explore his menu, click outside to dismiss it, then reopen it and choose Pet Mochi to play a reaction" width="760">
+
 Try these three menu favorites:
 
 - **Feed a tiny snack:** gulp-and-wiggle, snack chase, tummy pat, happy roll, and snack toss. Tiny shark, big appetite.
@@ -66,6 +76,10 @@ Choose **Swim now** for a spontaneous trip, or use **Come here** to pick the des
 3. When **“Where should I swim?”** appears, click a spot on any monitor.
 4. Watch him swim over with a little message. “Tiny fins, big mission!”
 
+**Pick a spot. He’ll bring the fins.** Here’s **Come here** in action:
+
+<img src="Project%20Files/previews/guide-come-here.gif" alt="Choose Come here from Mochi's menu, click a destination in the screen picker, and watch him swim across the desktop to that spot" width="760">
+
 Press **Escape** or **right-click** to cancel picking a spot. Switching to another app cancels it too. Mochi stays behind your app windows while swimming, so leave his destination visible if you want to watch him arrive.
 
 Need him to stay nearby? Toggle **Pause swimming** in his menu. You can still feed, pet, and play with him, and **Come here** still works. His occasional idle activities continue too.
@@ -78,6 +92,10 @@ Need him to stay nearby? Toggle **Pause swimming** in his menu. You can still fe
 4. Turn **Swim around occasionally** on or off, and enable **Start with Windows** if you want him to greet you after signing in.
 5. Feeling mischievous? You can also enable **Playful Mode** here. It starts off disabled.
 6. Click **Save**.
+
+**Your desktop, your little ocean.** This example picks **Large**, chooses **Energetic**, switches on **Playful Mode**, and saves. Pick whatever suits you!
+
+<img src="Project%20Files/previews/guide-settings.gif" alt="Open Settings from Mochi's menu, select Large and Energetic, enable the optional Playful Mode, and click Save" width="760">
 
 Opening `Mochi.exe` again brings up Settings for your existing companion. It does not create a second Mochi.
 
