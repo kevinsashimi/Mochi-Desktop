@@ -23,7 +23,7 @@ Snacks, happy wiggles, and a little showing off. These are some of the animation
 
 | A barrel roll | Catching a bubble wave |
 | :---: | :---: |
-| <img src="Project%20Files/previews/BarrelRoll.gif" alt="Mochi rolls over to show his belly, then returns upright" width="250"> | <img src="Project%20Files/previews/BubbleSurf-right.gif" alt="Mochi bobs along on a little raft of bubbles" width="250"> |
+| <img src="Project%20Files/previews/BarrelRoll.gif" alt="Mochi rolls over to show his belly, then returns upright" width="250"> | <img src="Project%20Files/previews/BubbleSurf-right.gif?v=2" alt="Mochi bobs along on a little raft of bubbles" width="250"> |
 | **Play together** | **Play together** |
 
 There are **16 feeding, petting, and play routines**, each with left- and right-facing versions. Menu actions cycle through their routines, so try them more than once! You can [browse more animation previews here](Project%20Files/previews/).
@@ -43,21 +43,27 @@ Want the source and all the previews too? On this repository, choose **Code → 
 
 ## 2. Say hello
 
-Start with a click, then explore his menu:
+Four little ways to make a finned friend:
 
-| What you do | What happens |
-| --- | --- |
-| **Click Mochi** | He immediately plays a random snack, petting, or play animation. Surprise! |
-| **Click and drag** | Pick him up and move him to another spot, or even another monitor. |
-| **Move your pointer nearby** | He looks toward it, with gentle bobbing and swaying. |
-| **Right-click Mochi** | Open his controls for feeding, petting, playing, swimming, and settings. |
-| **Click or right-click his system tray icon** | Open the same controls, even when app windows cover him. Look near the clock; the icon may be inside the hidden-icons arrow. |
+**Click Mochi.** One gentle click starts a random snack, petting, or play animation. Every visit is a little surprise!
+
+<img src="Project%20Files/previews/guide-click.gif" alt="A single left-click on Mochi starts a happy interaction, which plays through before he returns to idle" width="760">
+
+**Click and drag.** Hold the left mouse button on Mochi, move him to a new spot, then let go. You can carry him to another monitor too. Tiny shark, coming through!
+
+<img src="Project%20Files/previews/guide-drag.gif" alt="Hold the left mouse button on Mochi, drag him across the desktop, and release him at his new spot" width="760">
+
+**Move your pointer nearby.** No click needed: move your pointer around him and watch his curious little face follow along, with gentle bobbing and swaying.
+
+<img src="Project%20Files/previews/guide-pointer.gif" alt="Move the pointer in a circle around Mochi and watch him turn toward it, then relax when the pointer moves away" width="760">
+
+**Right-click Mochi.** Explore his controls for feeding, petting, playing, swimming, and settings. Here’s a quick menu tour, followed by a little pat:
+
+<img src="Project%20Files/previews/guide-menu.gif?v=2" alt="Right-click Mochi to explore his menu, click outside to dismiss it, then reopen it and choose Pet Mochi to play a reaction" width="760">
 
 Changed your mind? Click outside the menu or press **Escape** to close it.
 
-**A quick tour of his menu:** right-click, have a look around, then give him a little pat.
-
-<img src="Project%20Files/previews/guide-menu.gif?v=2" alt="Right-click Mochi to explore his menu, click outside to dismiss it, then reopen it and choose Pet Mochi to play a reaction" width="760">
+You can also **click or right-click his system tray icon** to open the same controls when app windows cover him. Look near the clock; the icon may be inside the hidden-icons arrow.
 
 Try these three menu favorites:
 
