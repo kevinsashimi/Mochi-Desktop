@@ -67,4 +67,4 @@ The status probe reads availability and icon count only. It neither changes posi
 6. During a trip, move/delete the selected sample icon, change icon size, enable Auto arrange, hide desktop icons, restart Explorer, or change display configuration. Confirm Mochi stops without moving a different icon or disrupting the desktop.
 7. Pause ordinary swimming and confirm pranks continue. Disable Playful Mode and confirm no further pranks occur. Suspend/resume Windows and confirm there is no burst of overdue trips.
 
-Publish a tested `Mochi.exe` and its generated `Project Files/update.xml` together. The root executable is version 1.1.5; the manifest records its exact size and SHA-256.
+Publish a tested `Mochi.exe` and its generated `Project Files/update.xml` together. The manifest records the root executable’s version, exact size, and SHA-256.

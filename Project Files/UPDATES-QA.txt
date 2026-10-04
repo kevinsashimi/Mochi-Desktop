@@ -1,38 +1,36 @@
-Mochi Desktop updates — version 1.0.0
-Verified 1 October 2026 (Asia/Singapore).
+Mochi Desktop updates — version 1.1.6
+Verified 4 October 2026 (Asia/Singapore).
+
+Confirmed Windows failure and fix:
+- The user report from diagnostic 1.1.4.1 identified MissingMethodException:
+  System.String.TrimEnd(Char), in the updater's temporary-directory validation.
+- Mono runtime assemblies exposed an overload absent from Windows .NET Framework.
+- Both calls explicitly use char[] now. Cloud compilation uses Microsoft's .NET
+  Framework 4.8 reference assemblies, not Mono implementation assemblies.
+- The compiler references are the official net48 NuGet package 1.0.3, verified by
+  its catalog SHA-512. Reusable cloud setup includes these references.
+- The compiled-signature regression rejects published 1.1.5 and accepts 1.1.6.
 
 Behavior:
-- One background update check on each fresh launch, including Windows startup.
-- New versions prompt Yes/No before downloading. No and Cancel keep the current app.
-- Shared pet/tray menu includes Check for updates and Info.
-- Info reads the running executable's embedded assembly version.
-- Manual checks report up-to-date, unavailable metadata, or connection failures.
-- Automatic no-update/offline checks remain quiet; update prompts wait for greetings and active controls.
+- Check for updates and automatic checks pin metadata and Mochi.exe to one GitHub commit.
+- Consent precedes executable download; size, SHA-256, identity and version are verified.
+- The current app stays running until its helper starts; the helper waits for that
+  exact parent process to exit, replaces only Mochi.exe, and restarts the new app.
+- Settings and startup shortcuts are preserved; a failed restart restores the old app.
+- Failures show the exact stage, underlying exception/HRESULT and native error code.
+- update-error.txt is saved beside preferences, falling back to LOCALAPPDATA\Mochi.
+  Reports are local only. A failed report write does not hide the update error.
+- Info shows the running executable path to distinguish copied installations.
 
-Distribution:
-- Public repository: https://github.com/kevinsashimi/Mochi-Desktop
-- Reads main's commit, then the small Project Files/update.xml from that commit.
-- Only Mochi.exe is downloaded as the update payload, from the same commit.
-- Size, SHA-256 and assembly identity/version must match before replacement.
-- The helper waits for the current process to exit, atomically replaces only the executable,
-  then starts the updated app in the same location.
-- Settings, Project Files and startup shortcuts are not replaced.
-- The old executable is restored if starting the replacement throws.
-- Downloads, checks, and replacement failures leave the current app available.
+Validation:
+- All 22 groups passed: 10 companion, 7 updater, 5 Playful Mode.
+- Existing update comparisons, pinned downloads, invalid metadata/payloads, cancellation,
+  rollback, locked/changed targets, real helper wait/replacement/restart and UI menus pass.
+- Added exact failure stages, report fallback, blocked launch preserving app/settings,
+  temporary-directory acceptance/rejection and emitted char[] overload verification.
+- Microsoft reference-assembly compilation establishes the API surface; Wine runtime
+  checks do not replace a live Windows check of the fixed build, which remains pending.
 
-Fresh verification:
-- Full existing companion self-test suite passed with exit code 0.
-- Updater suite passed version comparisons, no-download checks, malformed metadata,
-  offline/cancellation, corrupted payload rejection, hash/size/version validation,
-  atomic replacement, unchanged settings/supporting files, locked/changed targets,
-  rollback, real helper process wait/replacement/restart, and menu entries.
-- Production .NET networking successfully reached GitHub without authentication and
-  handled the currently unpublished update manifest with the intended manual message.
-- Rebuilt companion preview rendered correctly.
-- The borderless pet window is not targetable by the desktop automation tool;
-  interactive menu clicks and accepting a real published remote update were not exercised.
-
-Publishing:
-The tested executable and matching Project Files/update.xml must be published together
-to main. Increase source/AssemblyInfo.cs versions for every future executable update
-and regenerate the manifest through source/build.ps1. See README.md for instructions.
+Older affected builds require a one-time manual replacement of Mochi.exe because
+those executables supply the broken helper. Keep settings.xml and Project Files.
+See UPDATE-DIAGNOSTICS.md for installation steps and the confirmed root cause.

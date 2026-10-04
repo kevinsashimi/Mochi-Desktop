@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
@@ -49,6 +50,104 @@ namespace MochiDesktop {
             }
             il.Emit(OpCodes.Ret); type.CreateType(); assembly.SetEntryPoint(main, PEFileKinds.ConsoleApplication); assembly.Save("Mochi.exe");
             return Path.Combine(directory, "Mochi.exe");
+        }
+        static UpdateFailure FailureAt(Action action, string stage) {
+            try { action(); }
+            catch (UpdateFailure error) {
+                Check(error.Stage == stage, "wrong failure stage: " + error.Stage);
+                return error;
+            }
+            throw new Exception("Updates: expected failure at " + stage);
+        }
+        static IEnumerable<MethodBase> Calls(MethodInfo method) {
+            Dictionary<short, OpCode> codes = new Dictionary<short, OpCode>();
+            foreach (FieldInfo field in typeof(OpCodes).GetFields(BindingFlags.Public | BindingFlags.Static))
+                if (field.FieldType == typeof(OpCode)) { OpCode code = (OpCode)field.GetValue(null); codes[code.Value] = code; }
+            byte[] il = method.GetMethodBody().GetILAsByteArray();
+            for (int offset = 0; offset < il.Length;) {
+                short value = il[offset++];
+                if (value == 0xfe) value = unchecked((short)(0xfe00 | il[offset++]));
+                OpCode code = codes[value];
+                switch (code.OperandType) {
+                    case OperandType.InlineMethod:
+                        yield return method.Module.ResolveMethod(BitConverter.ToInt32(il, offset)); offset += 4; break;
+                    case OperandType.InlineNone: break;
+                    case OperandType.ShortInlineBrTarget: case OperandType.ShortInlineI: case OperandType.ShortInlineVar: offset++; break;
+                    case OperandType.InlineVar: offset += 2; break;
+                    case OperandType.InlineI8: case OperandType.InlineR: offset += 8; break;
+                    case OperandType.InlineSwitch: offset += 4 + 4 * BitConverter.ToInt32(il, offset); break;
+                    default: offset += 4; break;
+                }
+            }
+        }
+        public static void VerifyFrameworkCompatibility(Assembly assembly) {
+            MethodInfo check = assembly.GetType("MochiDesktop.UpdateInstaller").GetMethod("IsUpdateDirectory", BindingFlags.NonPublic | BindingFlags.Static);
+            int trims = 0;
+            // Executing under Mono alone cannot catch this Windows MissingMethodException.
+            // Verify the emitted member reference, including when compiled with Mono libraries.
+            foreach (MethodBase call in Calls(check)) if (call.DeclaringType == typeof(string) && call.Name == "TrimEnd") {
+                ParameterInfo[] parameters = call.GetParameters();
+                Check(parameters.Length == 1 && parameters[0].ParameterType == typeof(char[]), "TrimEnd must reference the .NET Framework char[] overload, not TrimEnd(char)");
+                trims++;
+            }
+            Check(trims == 2, "update-directory validation lost its two separator trims");
+            string directory = Path.Combine(Path.GetTempPath(), "Mochi-update-" + Guid.NewGuid().ToString("N"));
+            Check((bool)check.Invoke(null, new object[] { directory }), "valid temporary update directory rejected");
+            Check((bool)check.Invoke(null, new object[] { directory + Path.DirectorySeparatorChar }), "trailing separator rejected");
+            Check(!(bool)check.Invoke(null, new object[] { directory + "-unexpected" }), "unexpected directory accepted");
+            Check(!(bool)check.Invoke(null, new object[] { Path.Combine(directory, "Mochi-update-" + new string('a', 32)) }), "nested update directory accepted");
+        }
+        static void VerifyDiagnostics(string root, string self, UpdateInfo update) {
+            FakeTransport network = new FakeTransport { Binary = File.ReadAllBytes(self), Failure = new IOException("transfer interrupted") };
+            UpdateService service = new UpdateService(network);
+            FailureAt(delegate { service.Download(update, CancellationToken.None); }, "Downloading the new app");
+            network.Failure = null;
+            string folder = Path.Combine(root, "diagnostic install");
+            string target = Fixture(folder, new Version(0, 9, 0, 0), false, false);
+            string oldHash = UpdateService.Hash(target);
+            string preferences = Path.Combine(folder, "Project Files"); Directory.CreateDirectory(preferences);
+            string settings = Path.Combine(preferences, "settings.xml"); File.WriteAllText(settings, "keep settings");
+            string download = service.Download(update, CancellationToken.None);
+            bool launched = false;
+            try {
+                using (FileStream locked = new FileStream(target, FileMode.Open, FileAccess.Read, FileShare.None)) {
+                    FailureAt(delegate {
+                        UpdateInstaller.PrepareAndStart(download, update, target, delegate { launched = true; });
+                    }, "Reading the running app's identity");
+                }
+                Check(!launched, "preparation failure started a helper");
+                UpdateFailure failure = FailureAt(delegate {
+                    UpdateInstaller.PrepareAndStart(download, update, target, delegate(ProcessStartInfo start) {
+                        launched = true;
+                        Check(!start.UseShellExecute && start.Arguments == "--apply-update " + UpdateInstaller.Quote(download), "helper launch parameters changed");
+                        InstallRequest request = InstallRequest.Load(download);
+                        Check(request.Target == target && request.OldHash == oldHash && File.Exists(start.FileName), "handoff not ready before launch");
+                        throw new Win32Exception(5, "Access is denied");
+                    });
+                }, "Starting the updater");
+                Check(launched && UpdateService.Hash(target) == oldHash && File.ReadAllText(settings) == "keep settings", "failed launch modified the installed app or preferences");
+                string message = UpdateDiagnostics.Report(failure, "Preparing", target);
+                string report = File.ReadAllText(Path.Combine(preferences, "update-error.txt"));
+                Check(message.Contains("Starting the updater") && message.Contains("Windows error 5") && message.Contains("Win32Exception") && message.Contains("0x"), "failure dialog hid its stage or native code");
+                Check(report.Contains("Step: Starting the updater") && report.Contains("Update target: " + target) && report.Contains("Access is denied"), "persistent report lost original failure details");
+                string blocked = Path.Combine(root, "blocked-log-folder"); File.WriteAllText(blocked, "not a directory");
+                string fallback = Path.Combine(root, "fallback-log");
+                message = UpdateDiagnostics.Report(failure, "Preparing", target, new[] { blocked, fallback });
+                Check(File.Exists(Path.Combine(fallback, "update-error.txt")) && message.Contains(fallback), "report did not fall back from an unwritable location");
+                message = UpdateDiagnostics.Report(failure, "Preparing", target, new[] { blocked });
+                Check(message.Contains("could not be saved") && message.Contains("Windows error 5"), "logging failure hid the update failure");
+                FailureAt(delegate { UpdateDiagnostics.At("Outer stage", delegate { throw failure; }); }, "Starting the updater");
+                OperationCanceledException canceled = new OperationCanceledException();
+                try { UpdateDiagnostics.At("Canceled transfer", delegate { throw canceled; }); throw new Exception("cancellation swallowed"); }
+                catch (OperationCanceledException error) { Check(Object.ReferenceEquals(error, canceled), "cancellation was wrapped"); }
+                Check(UpdateService.Explain(new Win32Exception(32)).Contains("locked"), "sharing violation guidance missing");
+                Check(UpdateService.Explain(new Win32Exception(225)).Contains("Protection history"), "security block guidance missing");
+                Check(UpdateService.Explain(new Win32Exception(1260)).Contains("policy"), "application policy guidance missing");
+                string invalid = Path.Combine(root, "invalid-image.exe"); File.WriteAllText(invalid, "not a managed assembly");
+                FailureAt(delegate {
+                    UpdateService.VerifyExecutable(invalid, new UpdateInfo { Size = new FileInfo(invalid).Length, Sha256 = UpdateService.Hash(invalid), Version = update.Version });
+                }, "Reading the update file's assembly version");
+            } finally { UpdateInstaller.Cleanup(download); }
         }
         public static int Run(string reportPath) {
             string root = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(reportPath)), "update-fixtures-" + Guid.NewGuid().ToString("N"));
@@ -152,6 +251,10 @@ namespace MochiDesktop {
                 for (int i = 0; i < 40 && !File.Exists(Path.Combine(futureFolder, "restarted.txt")); i++) Thread.Sleep(50);
                 Check(File.Exists(Path.Combine(futureFolder, "restarted.txt")), "helper did not restart the new executable");
                 results.Add("PASS: real helper waits for old process, replaces Mochi.exe, and launches the new executable from paths containing spaces.");
+                VerifyDiagnostics(root, self, update);
+                results.Add("PASS: exact download, validation, preparation and launch failure stages; native error codes; persistent original-folder report and fallback; cancellation stays silent; blocked helper leaves app and settings intact.");
+                VerifyFrameworkCompatibility(Assembly.GetExecutingAssembly());
+                results.Add("PASS: emitted .NET Framework-compatible TrimEnd(char[]) references; valid temporary updater directories and trailing separators; malformed and nested directories rejected.");
                 Companion.VerifyUpdateMenu();
                 results.Add("PASS: shared pet/tray menu contains Check for updates and Info; displayed version comes from the running assembly.");
                 File.WriteAllLines(reportPath, results.ToArray());

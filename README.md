@@ -109,6 +109,9 @@ You can also choose **Check for updates** from his menu, or **Info** to see your
 
 If you have an older copy without **Check for updates**, quit it and replace it with the [current executable](https://github.com/kevinsashimi/Mochi-Desktop/raw/refs/heads/main/Mochi.exe) once to get the updater.
 
+If updating from an older build fails, version **1.1.6** fixes a Windows compatibility error in the updater. Install it once by quitting Mochi and replacing only `Mochi.exe`, keeping your settings and `Project Files`. See the [update troubleshooting notes](Project%20Files/UPDATE-DIAGNOSTICS.md). Quit the existing Mochi before testing a copy from another folder; opening a second copy brings up the running instance.
+
+
 ## A few handy tips
 
 - **Where did he go?** Mochi lives behind your windows. Show the desktop, or use his tray icon to reach the controls.

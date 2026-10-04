@@ -18,6 +18,59 @@ using System.Xml;
 using System.Xml.Linq;
 
 namespace MochiDesktop {
+    sealed class UpdateFailure : Exception {
+        public readonly string Stage;
+        public UpdateFailure(string stage, Exception error) : base(stage + ": " + error.Message, error) { Stage = stage; }
+    }
+
+    static class UpdateDiagnostics {
+        public static T At<T>(string stage, Func<T> action) {
+            try { return action(); }
+            catch (OperationCanceledException) { throw; }
+            catch (UpdateFailure) { throw; }
+            catch (Exception error) { throw new UpdateFailure(stage, error); }
+        }
+        public static void At(string stage, Action action) { At<object>(stage, delegate { action(); return null; }); }
+        public static string Stage(Exception error, string fallback) {
+            UpdateFailure failure = error as UpdateFailure;
+            return failure == null ? fallback : failure.Stage;
+        }
+        public static string Details(Exception error) {
+            Exception cause = error.GetBaseException();
+            Win32Exception native = cause as Win32Exception;
+            return cause.GetType().Name + " (0x" + cause.HResult.ToString("X8", CultureInfo.InvariantCulture) + ")" +
+                (native == null ? "" : "; Windows error " + native.NativeErrorCode.ToString(CultureInfo.InvariantCulture)) +
+                "\r\n" + cause.Message;
+        }
+        // Called for failures only. No report is uploaded or included in update requests.
+        // The helper receives the original app path so its report survives temporary-file cleanup.
+        public static string Report(Exception error, string fallbackStage, string target = null, string[] reportFolders = null) {
+            string stage = Stage(error, fallbackStage);
+            string message = UpdateService.Explain(error) + "\r\n\r\nStep: " + stage + "\r\n" + Details(error);
+            string report = "Mochi " + AppVersion.Current + "\r\n" + DateTimeOffset.Now.ToString("o") +
+                "\r\nStep: " + stage + "\r\nRunning executable: " + Application.ExecutablePath +
+                "\r\nUpdate target: " + (target ?? Application.ExecutablePath) +
+                "\r\nRuntime: " + Environment.Version + "; process: " + (IntPtr.Size * 8) + "-bit\r\n\r\n" + error;
+            try {
+                if (reportFolders == null) {
+                    string folder = Path.GetDirectoryName(target ?? Application.ExecutablePath);
+                    string project = Path.Combine(folder, "Project Files");
+                    reportFolders = new[] { Directory.Exists(project) ? project : folder,
+                        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mochi") };
+                }
+                foreach (string folder in reportFolders) {
+                    try {
+                        Directory.CreateDirectory(folder);
+                        string path = Path.Combine(folder, "update-error.txt");
+                        File.WriteAllText(path, report);
+                        return message + "\r\n\r\nDetails saved to:\r\n" + path;
+                    } catch (Exception) { /* Preserve the update error if reporting is blocked too. */ }
+                }
+            } catch (Exception) { }
+            return message + "\r\n\r\nThe error report could not be saved. Please copy these details.";
+        }
+    }
+
     static class AppVersion {
         public static Version Current { get { return Assembly.GetExecutingAssembly().GetName().Version; } }
         public static string Display(Version version) { return version.Revision > 0 ? version.ToString(4) : version.ToString(3); }
@@ -130,21 +183,30 @@ namespace MochiDesktop {
         public UpdateService(IUpdateTransport transport) { this.transport = transport; }
         [DataContract] sealed class CommitResponse { [DataMember(Name = "sha")] public string Sha { get; set; } }
         public UpdateInfo Check(Version installed, CancellationToken cancellation) {
-            byte[] commitBytes = transport.Get(CommitUrl, 512 * 1024, cancellation);
-            CommitResponse commit;
-            using (MemoryStream stream = new MemoryStream(commitBytes))
-                commit = (CommitResponse)new DataContractJsonSerializer(typeof(CommitResponse)).ReadObject(stream);
+            byte[] commitBytes = UpdateDiagnostics.At("Reading the latest GitHub version", delegate {
+                return transport.Get(CommitUrl, 512 * 1024, cancellation);
+            });
+            CommitResponse commit = UpdateDiagnostics.At("Reading the GitHub version reference", delegate {
+                using (MemoryStream stream = new MemoryStream(commitBytes))
+                    return (CommitResponse)new DataContractJsonSerializer(typeof(CommitResponse)).ReadObject(stream);
+            });
             if (commit == null || !UpdateInfo.IsHash(commit.Sha, 40)) throw new InvalidDataException("GitHub returned an invalid version reference.");
-            // Pin the small manifest and the executable to the same commit, even if main changes during download.
-            UpdateInfo latest = UpdateInfo.Parse(transport.Get(RawBase + commit.Sha + "/Project%20Files/update.xml", 16384, cancellation), commit.Sha);
+            // Pin the small manifest and executable to the same commit.
+            UpdateInfo latest = UpdateDiagnostics.At("Reading the update manifest", delegate {
+                return UpdateInfo.Parse(transport.Get(RawBase + commit.Sha + "/Project%20Files/update.xml", 16384, cancellation), commit.Sha);
+            });
             return latest.Version > installed ? latest : null;
         }
         public string Download(UpdateInfo update, CancellationToken cancellation) {
-            string directory = Path.Combine(Path.GetTempPath(), "Mochi-update-" + Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(directory);
+            string directory = UpdateDiagnostics.At("Creating the temporary update folder", delegate {
+                string path = Path.Combine(Path.GetTempPath(), "Mochi-update-" + Guid.NewGuid().ToString("N"));
+                Directory.CreateDirectory(path); return path;
+            });
             string candidate = Path.Combine(directory, "Mochi.download.exe");
             try {
-                transport.Download(RawBase + update.Commit + "/Mochi.exe", candidate, update.Size, cancellation);
+                UpdateDiagnostics.At("Downloading the new app", delegate {
+                    transport.Download(RawBase + update.Commit + "/Mochi.exe", candidate, update.Size, cancellation);
+                });
                 cancellation.ThrowIfCancellationRequested();
                 VerifyExecutable(candidate, update);
                 return directory;
@@ -159,13 +221,28 @@ namespace MochiDesktop {
                 return BitConverter.ToString(sha.ComputeHash(stream)).Replace("-", "").ToLowerInvariant();
         }
         public static void VerifyExecutable(string path, UpdateInfo expected) {
-            if (new FileInfo(path).Length != expected.Size || !String.Equals(Hash(path), expected.Sha256, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidDataException("The downloaded update failed its integrity check. Please try again.");
-            AssemblyName assembly = AssemblyName.GetAssemblyName(path);
-            if (assembly.Name != "Mochi" || assembly.Version != expected.Version)
-                throw new InvalidDataException("The downloaded program does not match the announced Mochi version.");
+            UpdateDiagnostics.At("Verifying the update file's size and checksum", delegate {
+                if (new FileInfo(path).Length != expected.Size || !String.Equals(Hash(path), expected.Sha256, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidDataException("The downloaded update failed its integrity check. Please try again.");
+            });
+            UpdateDiagnostics.At("Reading the update file's assembly version", delegate {
+                AssemblyName assembly = AssemblyName.GetAssemblyName(path);
+                if (assembly.Name != "Mochi" || assembly.Version != expected.Version)
+                    throw new InvalidDataException("The downloaded program does not match the announced Mochi version.");
+            });
         }
         public static string Explain(Exception error) {
+            error = error.GetBaseException();
+            Win32Exception native = error as Win32Exception;
+            int code = native == null ? error.HResult & 0xffff : native.NativeErrorCode;
+            if ((error is IOException || native != null) && (code == 32 || code == 33))
+                return "A file needed by the updater is locked by another process. Close other Mochi copies and try again.";
+            if (native != null && (code == 225 || code == 226))
+                return "Windows security software blocked an update file. Check Windows Security Protection history for details.";
+            if (native != null && code == 1260)
+                return "A Windows application policy blocked the updater. Check with the administrator who manages this PC.";
+            if (native != null && code == 5)
+                return "Windows denied access while preparing or starting the updater.";
             WebException web = error as WebException;
             HttpWebResponse response = web == null ? null : web.Response as HttpWebResponse;
             if (response != null && response.StatusCode == HttpStatusCode.NotFound)
@@ -177,7 +254,7 @@ namespace MochiDesktop {
             if (error is UnauthorizedAccessException)
                 return "Mochi cannot write to its folder. Move it to a folder you can write to, then try again.";
             if (error is InvalidDataException) return error.Message;
-            return "The update could not be completed. Your current app is still available. Please try again.";
+            return "The update stopped unexpectedly. The details below identify the failed step.";
         }
     }
 
@@ -214,41 +291,58 @@ namespace MochiDesktop {
             return "\"" + value + "\"";
         }
         public static void PrepareAndStart(string directory, UpdateInfo update) {
-            string target = Application.ExecutablePath;
+            PrepareAndStart(directory, update, Application.ExecutablePath, delegate(ProcessStartInfo start) {
+                using (Process process = Process.Start(start)) {
+                    if (process == null) throw new IOException("The updater could not start.");
+                }
+            });
+        }
+        // The launch callback lets tests exercise the full preparation path without closing the test runner.
+        internal static void PrepareAndStart(string directory, UpdateInfo update, string target, Action<ProcessStartInfo> launch) {
             UpdateService.VerifyExecutable(Path.Combine(directory, "Mochi.download.exe"), update);
-            // Check folder access before asking the running companion to exit.
-            string probe = Path.Combine(Path.GetDirectoryName(target), ".mochi-write-" + Guid.NewGuid().ToString("N"));
-            using (FileStream stream = new FileStream(probe, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1, FileOptions.DeleteOnClose)) {}
-            using (Process current = Process.GetCurrentProcess()) {
-                new InstallRequest { Target = target, OldHash = UpdateService.Hash(target), ParentId = current.Id,
-                    ParentStarted = current.StartTime.ToUniversalTime().Ticks, Update = update }.Save(directory);
-            }
+            UpdateDiagnostics.At("Checking write access to Mochi's folder", delegate {
+                string probe = Path.Combine(Path.GetDirectoryName(target), ".mochi-write-" + Guid.NewGuid().ToString("N"));
+                using (FileStream stream = new FileStream(probe, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1, FileOptions.DeleteOnClose)) {}
+            });
+            InstallRequest request = UpdateDiagnostics.At("Reading the running app's identity", delegate {
+                using (Process current = Process.GetCurrentProcess()) {
+                    return new InstallRequest { Target = target, OldHash = UpdateService.Hash(target), ParentId = current.Id,
+                        ParentStarted = current.StartTime.ToUniversalTime().Ticks, Update = update };
+                }
+            });
+            UpdateDiagnostics.At("Writing the update handoff", delegate { request.Save(directory); });
             string helper = Path.Combine(directory, "Mochi.updater.exe");
-            File.Copy(target, helper, false);
-            using (Process process = Process.Start(new ProcessStartInfo(helper, "--apply-update " + Quote(directory)) {
-                UseShellExecute = false, CreateNoWindow = true, WindowStyle = ProcessWindowStyle.Hidden, WorkingDirectory = directory
-            })) { if (process == null) throw new IOException("The updater could not start."); }
+            UpdateDiagnostics.At("Copying the updater", delegate { File.Copy(target, helper, false); });
+            UpdateDiagnostics.At("Starting the updater", delegate {
+                launch(new ProcessStartInfo(helper, "--apply-update " + Quote(directory)) {
+                    UseShellExecute = false, CreateNoWindow = true, WindowStyle = ProcessWindowStyle.Hidden, WorkingDirectory = directory
+                });
+            });
         }
         public static void ReplaceAndRestart(string directory, InstallRequest request, Action<string, string> restart) {
             string candidate = Path.Combine(directory, "Mochi.download.exe");
             UpdateService.VerifyExecutable(candidate, request.Update);
-            if (UpdateService.Hash(request.Target) != request.OldHash)
-                throw new IOException("Mochi changed while the update was downloading. Please check for updates again.");
-            AssemblyName installed = AssemblyName.GetAssemblyName(request.Target);
-            if (installed.Name != "Mochi" || request.Update.Version <= installed.Version)
-                throw new InvalidDataException("An update must be newer than the installed Mochi version.");
+            UpdateDiagnostics.At("Checking the installed app before replacement", delegate {
+                if (UpdateService.Hash(request.Target) != request.OldHash)
+                    throw new IOException("Mochi changed while the update was downloading. Please check for updates again.");
+                AssemblyName installed = AssemblyName.GetAssemblyName(request.Target);
+                if (installed.Name != "Mochi" || request.Update.Version <= installed.Version)
+                    throw new InvalidDataException("An update must be newer than the installed Mochi version.");
+            });
             string suffix = Guid.NewGuid().ToString("N");
             string incoming = Path.Combine(Path.GetDirectoryName(request.Target), ".Mochi-incoming-" + suffix + ".tmp");
             string backup = Path.Combine(Path.GetDirectoryName(request.Target), ".Mochi-backup-" + suffix + ".tmp");
             bool restarted = false;
             try {
-                File.Copy(candidate, incoming, false);
+                UpdateDiagnostics.At("Copying the new app into Mochi's folder", delegate { File.Copy(candidate, incoming, false); });
                 UpdateService.VerifyExecutable(incoming, request.Update);
                 // Same-volume atomic replacement: interruption cannot leave a half-written executable.
-                File.Replace(incoming, request.Target, backup);
-                try { restart(request.Target, "--cleanup-update " + Quote(directory)); restarted = true; }
-                catch {
-                    File.Replace(backup, request.Target, null);
+                UpdateDiagnostics.At("Replacing the installed app", delegate { File.Replace(incoming, request.Target, backup); });
+                try {
+                    UpdateDiagnostics.At("Restarting Mochi", delegate { restart(request.Target, "--cleanup-update " + Quote(directory)); });
+                    restarted = true;
+                } catch {
+                    UpdateDiagnostics.At("Restoring the previous app", delegate { File.Replace(backup, request.Target, null); });
                     throw;
                 }
             } finally {
@@ -266,26 +360,31 @@ namespace MochiDesktop {
             InstallRequest request = null;
             bool parentExited = false;
             try {
-                if (!IsUpdateDirectory(directory)) throw new InvalidDataException("Invalid update directory.");
-                request = InstallRequest.Load(directory);
-                Process parent = null;
-                try { parent = Process.GetProcessById(request.ParentId); } catch (ArgumentException) {}
-                if (parent != null) using (parent) {
-                    if (!parent.HasExited) {
-                        try {
-                            if (parent.StartTime.ToUniversalTime().Ticks != request.ParentStarted ||
-                                !String.Equals(parent.MainModule.FileName, request.Target, StringComparison.OrdinalIgnoreCase))
-                                throw new IOException("The running app changed. Please try updating again.");
-                        } catch (InvalidOperationException) { if (!parent.HasExited) throw; }
-                        if (!parent.WaitForExit(30000)) throw new IOException("Mochi did not close in time. Please try again.");
+                request = UpdateDiagnostics.At("Reading the updater handoff", delegate {
+                    if (!IsUpdateDirectory(directory)) throw new InvalidDataException("Invalid update directory.");
+                    return InstallRequest.Load(directory);
+                });
+                UpdateDiagnostics.At("Waiting for the running Mochi to close", delegate {
+                    Process parent = null;
+                    try { parent = Process.GetProcessById(request.ParentId); } catch (ArgumentException) {}
+                    if (parent != null) using (parent) {
+                        if (!parent.HasExited) {
+                            try {
+                                if (parent.StartTime.ToUniversalTime().Ticks != request.ParentStarted ||
+                                    !String.Equals(parent.MainModule.FileName, request.Target, StringComparison.OrdinalIgnoreCase))
+                                    throw new IOException("The running app changed. Please try updating again.");
+                            } catch (InvalidOperationException) { if (!parent.HasExited) throw; }
+                            if (!parent.WaitForExit(30000)) throw new IOException("Mochi did not close in time. Please try again.");
+                        }
                     }
-                }
+                });
                 parentExited = true;
                 // The old process has exited, releasing both the executable and the single-instance mutex.
                 ReplaceAndRestart(directory, request, StartApp);
                 return 0;
             } catch (Exception error) {
-                MessageBox.Show(UpdateService.Explain(error), "Mochi update", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(UpdateDiagnostics.Report(error, "Installing the update", request == null ? null : request.Target),
+                    "Mochi update", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 if (parentExited && request != null && File.Exists(request.Target)) {
                     try { StartApp(request.Target, "--cleanup-update " + Quote(directory)); } catch {}
                 }
@@ -293,8 +392,9 @@ namespace MochiDesktop {
             }
         }
         static bool IsUpdateDirectory(string directory) {
-            string full = Path.GetFullPath(directory).TrimEnd(Path.DirectorySeparatorChar);
-            return String.Equals(Path.GetDirectoryName(full), Path.GetTempPath().TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase) &&
+            // .NET Framework has TrimEnd(char[]), not Mono's newer TrimEnd(char).
+            string full = Path.GetFullPath(directory).TrimEnd(new[] { Path.DirectorySeparatorChar });
+            return String.Equals(Path.GetDirectoryName(full), Path.GetTempPath().TrimEnd(new[] { Path.DirectorySeparatorChar }), StringComparison.OrdinalIgnoreCase) &&
                 Regex.IsMatch(Path.GetFileName(full), "\\AMochi-update-[0-9a-f]{32}\\z") &&
                 (!Directory.Exists(full) || (File.GetAttributes(full) & FileAttributes.ReparsePoint) == 0);
         }
@@ -384,7 +484,7 @@ namespace MochiDesktop {
                 bool requested = manualUpdateCheck;
                 if (e.Error != null) {
                     if (requested && !(e.Error is OperationCanceledException))
-                        pendingUpdateNotice = delegate { ShowUpdateMessage(UpdateService.Explain(e.Error), MessageBoxIcon.Information); };
+                        pendingUpdateNotice = delegate { ShowUpdateMessage(UpdateDiagnostics.Report(e.Error, "Checking for updates"), MessageBoxIcon.Information); };
                 } else {
                     UpdateInfo update = (UpdateInfo)e.Result;
                     if (update != null) pendingUpdateNotice = delegate { OfferUpdate(update); };
@@ -412,6 +512,7 @@ namespace MochiDesktop {
             try {
                 MessageBox.Show("Mochi Desktop\nVersion " + AppVersion.Text +
                     "\n\nYour little whale shark companion.\n\n" + UpdateService.Repository +
+                    "\n\nRunning from:\n" + Application.ExecutablePath +
                     "\n\nUse Check for updates to look for a newer version.",
                     "About Mochi", MessageBoxButtons.OK, MessageBoxIcon.Information);
             } finally { EndUpdateDialog(); }
@@ -426,7 +527,7 @@ namespace MochiDesktop {
                     MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
                 using (UpdateDownloadDialog dialog = new UpdateDownloadDialog(new UpdateService(new GitHubTransport()), update)) {
                     if (dialog.ShowDialog() != DialogResult.OK) {
-                        if (dialog.Error != null) MessageBox.Show(UpdateService.Explain(dialog.Error), "Mochi update", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        if (dialog.Error != null) MessageBox.Show(UpdateDiagnostics.Report(dialog.Error, "Downloading the update"), "Mochi update", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         return;
                     }
                     try {
@@ -434,7 +535,7 @@ namespace MochiDesktop {
                         restarting = true;
                     } catch (Exception error) {
                         UpdateInstaller.Cleanup(dialog.DownloadDirectory);
-                        MessageBox.Show(UpdateService.Explain(error), "Mochi update", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        MessageBox.Show(UpdateDiagnostics.Report(error, "Preparing the updater"), "Mochi update", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     }
                 }
             } finally { EndUpdateDialog(); }
