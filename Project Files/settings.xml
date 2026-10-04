@@ -2,9 +2,10 @@
 <Mochi>
   <Size>176</Size>
   <Frequency>2</Frequency>
-  <X>1876</X>
-  <Y>550</Y>
+  <X>755</X>
+  <Y>35</Y>
   <Roam>true</Roam>
+  <PlayfulMode>true</PlayfulMode>
   <NextFeed>0</NextFeed>
   <NextPet>2</NextPet>
   <NextPlay>0</NextPlay>
