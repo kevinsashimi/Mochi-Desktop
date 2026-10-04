@@ -57,7 +57,7 @@ Changed your mind? Click outside the menu or press **Escape** to close it.
 
 **A quick tour of his menu:** right-click, have a look around, then give him a little pat.
 
-<img src="Project%20Files/previews/guide-menu.gif" alt="Right-click Mochi to explore his menu, click outside to dismiss it, then reopen it and choose Pet Mochi to play a reaction" width="760">
+<img src="Project%20Files/previews/guide-menu.gif?v=2" alt="Right-click Mochi to explore his menu, click outside to dismiss it, then reopen it and choose Pet Mochi to play a reaction" width="760">
 
 Try these three menu favorites:
 
@@ -78,7 +78,7 @@ Choose **Swim now** for a spontaneous trip, or use **Come here** to pick the des
 
 **Pick a spot. He’ll bring the fins.** Here’s **Come here** in action:
 
-<img src="Project%20Files/previews/guide-come-here.gif" alt="Choose Come here from Mochi's menu, click a destination in the screen picker, and watch him swim across the desktop to that spot" width="760">
+<img src="Project%20Files/previews/guide-come-here.gif?v=2" alt="Choose Come here from Mochi's menu, click a destination in the screen picker, and watch him swim across the desktop to that spot" width="760">
 
 Press **Escape** or **right-click** to cancel picking a spot. Switching to another app cancels it too. Mochi stays behind your app windows while swimming, so leave his destination visible if you want to watch him arrive.
 
@@ -95,7 +95,7 @@ Need him to stay nearby? Toggle **Pause swimming** in his menu. You can still fe
 
 **Your desktop, your little ocean.** This example picks **Large**, chooses **Energetic**, switches on **Playful Mode**, and saves. Pick whatever suits you!
 
-<img src="Project%20Files/previews/guide-settings.gif" alt="Open Settings from Mochi's menu, select Large and Energetic, enable the optional Playful Mode, and click Save" width="760">
+<img src="Project%20Files/previews/guide-settings.gif?v=2" alt="Open Settings from Mochi's menu, select Large and Energetic, enable the optional Playful Mode, and click Save" width="760">
 
 Opening `Mochi.exe` again brings up Settings for your existing companion. It does not create a second Mochi.
 
