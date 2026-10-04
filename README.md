@@ -47,6 +47,8 @@ Start with a click, then explore his menu:
 | **Right-click Mochi** | Open his controls for feeding, petting, playing, swimming, and settings. |
 | **Click or right-click his system tray icon** | Open the same controls, even when app windows cover him. Look near the clock; the icon may be inside the hidden-icons arrow. |
 
+Changed your mind? Click outside the menu or press **Escape** to close it.
+
 Try these three menu favorites:
 
 - **Feed a tiny snack:** gulp-and-wiggle, snack chase, tummy pat, happy roll, and snack toss. Tiny shark, big appetite.

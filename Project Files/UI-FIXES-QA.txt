@@ -1,0 +1,33 @@
+Mochi Desktop menu and Settings fixes — version 1.1.7
+Verified 4 October 2026 (Asia/Singapore).
+
+Changes:
+- Opening the shared pet/tray popup explicitly makes its owner the foreground
+  window. Windows can then dismiss the popup when clicking elsewhere or pressing
+  Escape. Ordinary petting and dragging still use the non-activating companion.
+- Settings uses automatically sized text rows and DPI scaling. The complete
+  Playful Mode description, including descenders in Align and grid, has its own
+  space above the size selector. Save, Cancel and Save & try now retain their behavior.
+
+Verification:
+- Reproduced the outside-click failure with published 1.1.6 under Wine, using real
+  Windows mouse input and a separate Notepad process.
+- The corrected build opens the menu on a real right-click, leaves it open until
+  input, and dismisses it on desktop clicks, another-app clicks, or Escape.
+  Dismissing it starts no interaction; selecting Pet Mochi still plays the reaction.
+  The shared tray-style menu also closes on an outside click.
+- Displayed Settings at 96, 120, 144 and 192 DPI (100%, 125%, 150%, 200%). All
+  controls fit, the description has its full preferred height, and the size
+  selector stays below it with a clear gap. Rendered previews reviewed.
+- All 22 regression groups passed: 10 companion, 7 updater, 5 Playful Mode.
+  This includes independent activity clocks, Settings Save/Cancel/try-now,
+  updater replacement/restart/rollback and the .NET Framework API check.
+- Built against Microsoft .NET Framework 4.8 reference assemblies. The staged,
+  root and preview ZIP executables match; update.xml records their size and hash.
+  Repository preferences remain unchanged.
+
+Windows confirmation:
+These checks ran under Wine. Confirm the two fixes on a Windows desktop too.
+Quit the existing Mochi before trying another copy and check Info for version 1.1.7.
+To test a GitHub update from fixed version 1.1.6, publish 1.1.7 first, then choose
+Check for updates from the installed 1.1.6. An unpublished preview is a manual test.

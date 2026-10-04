@@ -294,7 +294,13 @@ namespace MochiDesktop {
             menu.Items.Add("How to play",null,delegate{Help();});
             AddUpdateMenu();
             menu.Items.Add(new ToolStripSeparator());menu.Items.Add("Quit Mochi",null,delegate{Close();});
-            menu.Opening+=delegate{CancelInteraction();swimming=false;edgeWatch.Reset(Now);pauseItem.Checked=!prefs.Roam;};menu.Closed+=delegate{Schedule();PauseAutomaticActivities();edgeWatch.Reset(Now);};
+            menu.Opening+=delegate{
+                CancelInteraction();swimming=false;edgeWatch.Reset(Now);pauseItem.Checked=!prefs.Roam;
+                // The companion normally refuses activation. A popup needs a foreground
+                // owner so Windows dismisses it on outside clicks and routes Escape to it.
+                if(!simulation)Native.SetForegroundWindow(Handle);
+            };
+            menu.Closed+=delegate{Schedule();PauseAutomaticActivities();edgeWatch.Reset(Now);};
         }
         void Schedule(){int[] lo={45,25,12},hi={90,55,25};nextSwim=Now+random.Next(lo[prefs.Frequency],hi[prefs.Frequency]+1);}
         void ScheduleIdleActivity(){nextIdleActivity=Now+random.Next(60,181);}
@@ -755,26 +761,40 @@ namespace MochiDesktop {
     sealed class SettingsDialog : Form {
         public bool TryPlayfulRequested { get; private set; }
         public SettingsDialog(Preferences prefs,Func<string> playfulStatus=null){
-            Text="Mochi Settings";ClientSize=new Size(405,470);FormBorderStyle=FormBorderStyle.FixedDialog;MaximizeBox=false;MinimizeBox=false;StartPosition=FormStartPosition.CenterScreen;TopMost=false;
+            SuspendLayout();
+            Text="Mochi Settings";AutoScaleDimensions=new SizeF(96,96);AutoScaleMode=AutoScaleMode.Dpi;AutoSize=true;AutoSizeMode=AutoSizeMode.GrowAndShrink;
+            FormBorderStyle=FormBorderStyle.FixedDialog;MaximizeBox=false;MinimizeBox=false;StartPosition=FormStartPosition.CenterScreen;TopMost=false;
             BackColor=Color.FromArgb(245,250,253);Font=new Font("Segoe UI",10);
-            Label title=new Label{Text="A little ocean on your desktop",Location=new Point(23,20),Size=new Size(365,30),Font=new Font("Segoe UI Semibold",14),ForeColor=Color.FromArgb(27,66,91)};
-            CheckBox startup=new CheckBox{Text="Start with Windows",Checked=Startup.Enabled,Location=new Point(25,70),AutoSize=true};
-            CheckBox roam=new CheckBox{Text="Swim around occasionally",Checked=prefs.Roam,Location=new Point(25,106),AutoSize=true};
-            CheckBox playfulMode=new CheckBox{Text="Playful Mode (mischievous icons)",Name="PlayfulModeToggle",Checked=prefs.PlayfulMode,Location=new Point(25,142),AutoSize=true};
-            Label playfulHint=new Label{Text="Every 3-5 minutes, borrow and rearrange an icon.\nFiles stay in place. Turn off desktop Auto arrange\nicons; turn off Align icons to grid for smooth swims.",Location=new Point(25,174),Size=new Size(355,56),ForeColor=Color.FromArgb(80,103,117),Font=new Font("Segoe UI",9)};
-            Label sl=new Label{Text="Mochi's size",Location=new Point(25,246),AutoSize=true};
-            ComboBox size=new ComboBox{DropDownStyle=ComboBoxStyle.DropDownList,Location=new Point(173,242),Width=199};size.Items.AddRange(new object[]{"Small","Medium","Large"});size.SelectedIndex=prefs.Size==144?0:prefs.Size==224?2:1;
-            Label fl=new Label{Text="Swim frequency",Location=new Point(25,289),AutoSize=true};
-            ComboBox freq=new ComboBox{DropDownStyle=ComboBoxStyle.DropDownList,Location=new Point(173,285),Width=199};freq.Items.AddRange(new object[]{"Calm (45-90 seconds)","Balanced (25-55 seconds)","Energetic (12-25 seconds)"});freq.SelectedIndex=prefs.Frequency;
-            Label hint=new Label{Text="Turn off Start with Windows for manual startup.\nMochi stays on this computer and runs offline.",Location=new Point(25,332),Size=new Size(355,44),ForeColor=Color.FromArgb(80,103,117),Font=new Font("Segoe UI",9)};
-            Button save=new Button{Text="Save",Location=new Point(272,418),Size=new Size(101,32)};Button cancel=new Button{Text="Cancel",Location=new Point(160,418),Size=new Size(101,32),DialogResult=DialogResult.Cancel};
-            Button status=new Button{Text="Playful status",Name="PlayfulStatus",Location=new Point(25,380),Size=new Size(153,30)};
+            // Text owns its row height, so font/DPI changes cannot clip descenders or
+            // place the size selector over the last line of the Playful Mode guidance.
+            TableLayoutPanel layout=new TableLayoutPanel{AutoSize=true,AutoSizeMode=AutoSizeMode.GrowAndShrink,ColumnCount=2,RowCount=10,
+                MinimumSize=new Size(405,0),Padding=new Padding(25,20,25,20),Margin=Padding.Empty};
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,148));layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
+            Label title=new Label{Text="A little ocean on your desktop",AutoSize=true,MaximumSize=new Size(355,0),Margin=new Padding(0,0,0,18),Font=new Font("Segoe UI Semibold",14),ForeColor=Color.FromArgb(27,66,91)};
+            CheckBox startup=new CheckBox{Text="Start with Windows",Checked=Startup.Enabled,AutoSize=true,Margin=new Padding(0,0,0,14)};
+            CheckBox roam=new CheckBox{Text="Swim around occasionally",Checked=prefs.Roam,AutoSize=true,Margin=new Padding(0,0,0,14)};
+            CheckBox playfulMode=new CheckBox{Text="Playful Mode (mischievous icons)",Name="PlayfulModeToggle",Checked=prefs.PlayfulMode,AutoSize=true,Margin=new Padding(0,0,0,6)};
+            Label playfulHint=new Label{Text="Every 3-5 minutes, borrow and rearrange an icon.\nFiles stay in place. Turn off desktop Auto arrange\nicons; turn off Align icons to grid for smooth swims.",Name="PlayfulModeHint",AutoSize=true,MaximumSize=new Size(355,0),Margin=new Padding(0,0,0,18),ForeColor=Color.FromArgb(80,103,117),Font=new Font("Segoe UI",9)};
+            Label sl=new Label{Text="Mochi's size",AutoSize=true,Anchor=AnchorStyles.Left,Margin=new Padding(0,0,8,14)};
+            ComboBox size=new ComboBox{Name="MochiSize",TabIndex=11,DropDownStyle=ComboBoxStyle.DropDownList,Dock=DockStyle.Fill,Margin=new Padding(0,0,0,14)};size.Items.AddRange(new object[]{"Small","Medium","Large"});size.SelectedIndex=prefs.Size==144?0:prefs.Size==224?2:1;
+            Label fl=new Label{Text="Swim frequency",AutoSize=true,Anchor=AnchorStyles.Left,Margin=new Padding(0,0,8,14)};
+            ComboBox freq=new ComboBox{TabIndex=13,DropDownStyle=ComboBoxStyle.DropDownList,Dock=DockStyle.Fill,Margin=new Padding(0,0,0,14)};freq.Items.AddRange(new object[]{"Calm (45-90 seconds)","Balanced (25-55 seconds)","Energetic (12-25 seconds)"});freq.SelectedIndex=prefs.Frequency;
+            Label hint=new Label{Text="Turn off Start with Windows for manual startup.\nMochi stays on this computer and runs offline.",AutoSize=true,MaximumSize=new Size(355,0),Margin=new Padding(0,0,0,14),ForeColor=Color.FromArgb(80,103,117),Font=new Font("Segoe UI",9)};
+            Button save=new Button{Text="Save",AutoSize=true,MinimumSize=new Size(101,32),Margin=new Padding(10,0,0,0)};Button cancel=new Button{Text="Cancel",AutoSize=true,MinimumSize=new Size(101,32),Margin=Padding.Empty,DialogResult=DialogResult.Cancel};
+            Button status=new Button{Text="Playful status",Name="PlayfulStatus",AutoSize=true,MinimumSize=new Size(153,30),Margin=new Padding(0,0,12,0)};
             status.Click+=delegate{MessageBox.Show(playfulStatus==null?"Open Settings from Mochi to check the desktop.":playfulStatus(),"Playful Mode status",MessageBoxButtons.OK,MessageBoxIcon.Information);};
-            Button tryPlayful=new Button{Text="Save && try now",Name="TryPlayfulNow",Enabled=playfulMode.Checked,Location=new Point(190,380),Size=new Size(183,30)};
+            Button tryPlayful=new Button{Text="Save && try now",Name="TryPlayfulNow",Enabled=playfulMode.Checked,AutoSize=true,MinimumSize=new Size(183,30),Margin=Padding.Empty};
             playfulMode.CheckedChanged+=delegate{tryPlayful.Enabled=playfulMode.Checked;};
             tryPlayful.Click+=delegate{TryPlayfulRequested=true;save.PerformClick();};
             save.Click+=delegate{try{if(startup.Checked!=Startup.Enabled)Startup.SetEnabled(startup.Checked);prefs.Roam=roam.Checked;prefs.PlayfulMode=playfulMode.Checked;prefs.Size=new[]{144,176,224}[size.SelectedIndex];prefs.Frequency=freq.SelectedIndex;DialogResult=DialogResult.OK;Close();}catch(Exception ex){MessageBox.Show("Couldn't update Windows startup. Your other settings haven't changed.\n\n"+ex.Message,"Mochi Settings",MessageBoxButtons.OK,MessageBoxIcon.Warning);}};
-            Controls.AddRange(new Control[]{title,startup,roam,playfulMode,playfulHint,sl,size,fl,freq,hint,status,tryPlayful,save,cancel});AcceptButton=save;CancelButton=cancel;
+            FlowLayoutPanel playfulActions=new FlowLayoutPanel{AutoSize=true,AutoSizeMode=AutoSizeMode.GrowAndShrink,WrapContents=false,Margin=new Padding(0,0,0,10)};
+            playfulActions.Controls.AddRange(new Control[]{status,tryPlayful});
+            FlowLayoutPanel buttons=new FlowLayoutPanel{AutoSize=true,AutoSizeMode=AutoSizeMode.GrowAndShrink,WrapContents=false,Anchor=AnchorStyles.Right,Margin=Padding.Empty};
+            buttons.Controls.AddRange(new Control[]{cancel,save});
+            Control[] rows={title,startup,roam,playfulMode,playfulHint,null,null,hint,playfulActions,buttons};
+            for(int i=0;i<rows.Length;i++)if(rows[i]!=null){rows[i].TabIndex=i*2;layout.Controls.Add(rows[i],0,i);layout.SetColumnSpan(rows[i],2);}
+            layout.Controls.Add(sl,0,5);layout.Controls.Add(size,1,5);layout.Controls.Add(fl,0,6);layout.Controls.Add(freq,1,6);
+            Controls.Add(layout);AcceptButton=save;CancelButton=cancel;ResumeLayout(true);
         }
     }
 
@@ -784,6 +804,7 @@ namespace MochiDesktop {
         [StructLayout(LayoutKind.Sequential)] public struct S {public int w,h;public S(int a,int b){w=a;h=b;}}
         [StructLayout(LayoutKind.Sequential,Pack=1)] public struct Blend {public byte op,flags,alpha,format;}
         [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+        [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
         [DllImport("user32.dll")] public static extern bool DestroyIcon(IntPtr icon);
         [DllImport("user32.dll",SetLastError=true)] static extern bool SetWindowPos(IntPtr window,IntPtr insertAfter,int x,int y,int width,int height,uint flags);
         delegate bool EnumWindowCallback(IntPtr window,IntPtr parameter);

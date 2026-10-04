@@ -186,9 +186,10 @@ namespace MochiDesktop {
             using (SettingsDialog form = new SettingsDialog(prefs)) {
                 Control[] toggles = form.Controls.Find("PlayfulModeToggle", true);
                 Check(toggles.Length == 1 && toggles[0] is CheckBox && !((CheckBox)toggles[0]).Checked, "settings-only toggle missing");
+                form.Show(); // Auto-sized rows settle when the dialog is displayed.
                 foreach (Control control in form.Controls) Check(form.ClientRectangle.Contains(control.Bounds), "settings control outside panel: " + control.Text);
                 ((CheckBox)toggles[0]).Checked = true;
-                form.Show(); ((Button)form.AcceptButton).PerformClick();
+                ((Button)form.AcceptButton).PerformClick();
                 Check(form.DialogResult == DialogResult.OK && prefs.PlayfulMode, "settings Save did not apply toggle");
             }
             using (SettingsDialog form = new SettingsDialog(prefs)) {
