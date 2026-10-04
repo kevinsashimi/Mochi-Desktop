@@ -23,7 +23,7 @@ Snacks, happy wiggles, and a little showing off. These are some of the animation
 
 | A barrel roll | Catching a bubble wave |
 | :---: | :---: |
-| <img src="Project%20Files/previews/BarrelRoll.gif" alt="Mochi rolls over to show his belly, then returns upright" width="250"> | <img src="Project%20Files/previews/BubbleSurf-right.gif?v=2" alt="Mochi bobs along on a little raft of bubbles" width="250"> |
+| <img src="Project%20Files/previews/BarrelRoll.gif" alt="Mochi rolls over to show his belly, then returns upright" width="250"> | <img src="Project%20Files/previews/BubbleSurf-right.gif?v=3" alt="Mochi bobs along on a little raft of bubbles" width="250"> |
 | **Play together** | **Play together** |
 
 There are **16 feeding, petting, and play routines**, each with left- and right-facing versions. Menu actions cycle through their routines, so try them more than once! You can [browse more animation previews here](Project%20Files/previews/).
