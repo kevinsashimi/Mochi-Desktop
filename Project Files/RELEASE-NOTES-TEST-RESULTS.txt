@@ -1,0 +1,3 @@
+PASS: embedded current release and ordered history; fresh/legacy installs, updater restarts, manual upgrades, repeated launches and downgrades; persisted release marker preserves preferences.
+PASS: deferred welcome respects controls and ongoing actions; no lost pending notice, no timer resets, no repeated welcome; fresh install records a quiet baseline.
+PASS: offline release selection and readable formatted content; dedicated Settings entry.

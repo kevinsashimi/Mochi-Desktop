@@ -10,7 +10,7 @@ Meet Mochi, a tiny animated companion for Windows who swims around your desktop,
 
 Mochi stays **behind your app windows**, so he can keep you company while you work. He runs locally, with no account or API key needed. Playing with Mochi works offline; only update checks and downloads use the internet.
 
-**[Download Mochi.exe](https://github.com/kevinsashimi/Mochi-Desktop/raw/refs/heads/main/Mochi.exe)** · [Get started](#1-bring-mochi-home) · [Learn the controls](#2-say-hello)
+**[Download Mochi.exe](https://github.com/kevinsashimi/Mochi-Desktop/raw/refs/heads/main/Mochi.exe)** · [Get started](#1-bring-mochi-home) · [Learn the controls](#2-say-hello) · [What's New](CHANGELOG.md)
 
 ## A few of Mochi's moves
 
@@ -105,6 +105,8 @@ Need him to stay nearby? Toggle **Pause swimming** in his menu. You can still fe
 
 Opening `Mochi.exe` again brings up Settings for your existing companion. It does not create a second Mochi.
 
+**Curious what washed ashore?** Choose **What's New** in Settings to browse release notes, including earlier versions. They travel inside the app, so you can read them offline. Opening the notes keeps your unsaved Settings choices; **Back to Settings** brings you right back.
+
 ## Playful Mode: tiny fins, a little mischief
 
 Mochi has discovered interior decorating. Unfortunately, his decorating supplies are your desktop icons.
@@ -132,6 +134,8 @@ Playful Mode and the snack / pat / play cycle keep their own clocks, so you stil
 Mochi checks GitHub for updates in the background each time he starts. If a newer version is available, he asks before downloading and restarting. Choose **No** to keep playing with your current version.
 
 You can also choose **Check for updates** from his menu, or **Info** to see your current version. Updates replace only the executable and preserve your preferences. Offline? Mochi keeps you company as usual.
+
+After an update, a little **“Fresh out of the tide!”** card shares the highlights once. Choose **What's New** for the full notes or **Keep swimming** to dismiss it. The card opens without taking keyboard focus and waits while Mochi is busy or his controls are open. You can always catch up through **Settings → What's New** or the [release notes here](CHANGELOG.md).
 
 If you have an older copy without **Check for updates**, quit it and replace it with the [current executable](https://github.com/kevinsashimi/Mochi-Desktop/raw/refs/heads/main/Mochi.exe) once to get the updater.
 
@@ -164,6 +168,7 @@ The default build replaces the root `Mochi.exe` and generates `Project Files/upd
 To publish an app update:
 
 1. Increase the assembly, file, and informational versions in `Project Files/source/AssemblyInfo.cs`.
+   Add the matching `## x.y.z - Title` entry at the top of [CHANGELOG.md](CHANGELOG.md), with `###` sections and `-` bullet points. The first two bullets become the welcome card's highlights. The build embeds this file for the offline reader; the release-notes checks verify the version matches.
 2. Build and test the executable, including the companion (`--self-test`) and updater (`--update-self-test`) checks. Each takes a result-file path as its next argument.
 3. Commit and push the tested root `Mochi.exe`, matching `Project Files/update.xml`, and source changes together to `main`.
 

@@ -14,6 +14,7 @@ using System.Collections.Generic;
 namespace MochiDesktop {
     static class Program {
         public static bool TestUi;
+        public static bool RestartedAfterUpdate;
         public static EventWaitHandle SettingsRequest;
         public static string DataDirectory {
             get {
@@ -29,6 +30,7 @@ namespace MochiDesktop {
                 Application.SetCompatibleTextRenderingDefault(false);
                 if (args.Length == 2 && args[0] == "--update-self-test") return UpdateTests.Run(args[1]);
                 if (args.Length == 2 && args[0] == "--playful-self-test") return PlayfulTests.Run(args[1]);
+                if (args.Length == 2 && args[0] == "--release-notes-self-test") return ReleaseNotesTests.Run(args[1]);
                 if (args.Length == 2 && args[0] == "--playful-preview") { PlayfulPreview.Write(args[1]); return 0; }
                 if (args.Length == 2 && args[0] == "--desktop-icons-status") {
                     using (IDesktopIcons icons = new WindowsDesktopIcons()) {
@@ -54,7 +56,8 @@ namespace MochiDesktop {
                 using (Mutex mutex = new Mutex(true, "Local\\MochiDesktopCompanion", out first)) {
                     if (!first) { using(EventWaitHandle request=EventWaitHandle.OpenExisting("Local\\MochiDesktopSettings"))request.Set(); return 0; }
                     using(SettingsRequest=new EventWaitHandle(false,EventResetMode.AutoReset,"Local\\MochiDesktopSettings")) {
-                        if(args.Length == 2 && args[0] == "--cleanup-update") UpdateInstaller.CleanupAfterRestart(args[1]);
+                        RestartedAfterUpdate=args.Length==2 && args[0]=="--cleanup-update";
+                        if(RestartedAfterUpdate) UpdateInstaller.CleanupAfterRestart(args[1]);
                         if(openSettings)SettingsRequest.Set();
                         Application.Run(new Companion());
                     }
@@ -72,11 +75,15 @@ namespace MochiDesktop {
     sealed class Preferences {
         public int Size = 176, Frequency = 1, X = int.MinValue, Y = int.MinValue, NextFeed, NextPet, NextPlay;
         public bool Roam = true, PlayfulMode;
+        public string LastReleaseNotesVersion = "";
+        public bool LoadedFromFile { get; private set; }
         static string FilePath { get { return Path.Combine(Program.DataDirectory,"settings.xml"); } }
         public static Preferences Load(string filePath=null) {
             Preferences p = new Preferences();
             try {
                 XElement x = XElement.Load(filePath??FilePath);
+                p.LoadedFromFile=true;
+                p.LastReleaseNotesVersion=(string)x.Element("LastReleaseNotesVersion")??"";
                 p.Size = (int?)x.Element("Size") ?? 176;
                 p.Frequency = (int?)x.Element("Frequency") ?? 1;
                 p.X = (int?)x.Element("X") ?? int.MinValue;
@@ -95,7 +102,7 @@ namespace MochiDesktop {
             try {
                 string target=filePath??FilePath;
                 XElement x = new XElement("Mochi",new XElement("Size",Size),new XElement("Frequency",Frequency),
-                    new XElement("X",X),new XElement("Y",Y),new XElement("Roam",Roam),new XElement("PlayfulMode",PlayfulMode),new XElement("NextFeed",NextFeed),new XElement("NextPet",NextPet),new XElement("NextPlay",NextPlay));
+                    new XElement("X",X),new XElement("Y",Y),new XElement("Roam",Roam),new XElement("PlayfulMode",PlayfulMode),new XElement("NextFeed",NextFeed),new XElement("NextPet",NextPet),new XElement("NextPlay",NextPlay),new XElement("LastReleaseNotesVersion",LastReleaseNotesVersion));
                 x.Save(target + ".tmp");
                 if(File.Exists(target)) File.Replace(target+".tmp",target,null); else File.Move(target+".tmp",target);
             } catch { /* A read-only portable folder must not prevent quitting. */ }
@@ -274,7 +281,7 @@ namespace MochiDesktop {
             tray=new NotifyIcon{Icon=trayIcon,Text="Mochi - right-click for controls",Visible=true,ContextMenuStrip=menu};
             tray.MouseClick+=delegate(object sender,MouseEventArgs e){if(e.Button==MouseButtons.Left)menu.Show(Cursor.Position);};
             timer.Interval=15; timer.Tick+=delegate{Tick();};
-            Shown+=delegate{Native.KeepBehindApps(Handle);StartWelcome();timer.Start();Render();StartUpdateCheck(false);};
+            Shown+=delegate{Native.KeepBehindApps(Handle);StartWelcome();PrepareReleaseWelcome();timer.Start();Render();StartUpdateCheck(false);};
             SetStyle(ControlStyles.StandardDoubleClick,false);
             MouseDown+=OnDown;MouseMove+=OnMove;MouseUp+=OnUp;
             MouseCaptureChanged+=delegate{if(!Capture && down){down=false;dragging=false;Schedule();PauseAutomaticActivities();}};
@@ -421,6 +428,7 @@ namespace MochiDesktop {
             PumpUpdateNotice();
             if(closing)return;
             if(Program.SettingsRequest!=null && Program.SettingsRequest.WaitOne(0) && !modal){OpenSettings();return;}
+            PumpReleaseWelcome();
             if(Now>=nextBackgroundCheck){Native.KeepBehindApps(Handle);nextBackgroundCheck=Now+1;}
             Advance(Now,Cursor.Position);
         }
@@ -486,6 +494,7 @@ namespace MochiDesktop {
         void DisplayChanged(object sender,EventArgs e){if(IsDisposed)return;try{BeginInvoke((Action)delegate{CancelPlayful();StopPicking();swimming=false;guidedSwim=false;Location=Motion.Clamp(Location,Size,Screen.FromRectangle(Bounds).WorkingArea);Schedule();SchedulePlayful();});}catch(InvalidOperationException){} }
         void Save(){if(simulation)return;prefs.X=Left;prefs.Y=Top;prefs.Save();}
         void OpenSettings(){
+            CloseReleaseWelcome();
             bool wasEnabled=prefs.PlayfulMode,tryPlayful=false;
             CancelInteraction();swimming=false;modal=true;
             try{using(SettingsDialog d=new SettingsDialog(prefs,GetPlayfulStatus)){if(d.ShowDialog()==DialogResult.OK){Size=Renderer.WindowSize(prefs.Size);Location=Motion.Clamp(Location,Size,Screen.FromRectangle(Bounds).WorkingArea);tryPlayful=d.TryPlayfulRequested;Save();}}}
@@ -507,9 +516,9 @@ namespace MochiDesktop {
             }
             base.WndProc(ref m);
         }
-        protected override void OnFormClosing(FormClosingEventArgs e){closing=true;CancelPlayful();StopUpdateChecks();StopPicking();timer.Stop();Save();base.OnFormClosing(e);}
+        protected override void OnFormClosing(FormClosingEventArgs e){closing=true;CloseReleaseWelcome();CancelPlayful();StopUpdateChecks();StopPicking();timer.Stop();Save();base.OnFormClosing(e);}
         protected override void Dispose(bool disposing){
-            if(disposing && !resourcesDisposed){resourcesDisposed=true;CancelPlayful();StopUpdateChecks();StopPicking();Microsoft.Win32.SystemEvents.DisplaySettingsChanged-=DisplayChanged;
+            if(disposing && !resourcesDisposed){resourcesDisposed=true;CloseReleaseWelcome();CancelPlayful();StopUpdateChecks();StopPicking();Microsoft.Win32.SystemEvents.DisplaySettingsChanged-=DisplayChanged;
                 timer.Dispose();if(tray!=null){tray.Visible=false;tray.Dispose();}if(trayIcon!=null)trayIcon.Dispose();if(menu!=null)menu.Dispose();if(canvas!=null)canvas.Dispose();atlas.Dispose();}
             base.Dispose(disposing);
         }
@@ -770,7 +779,7 @@ namespace MochiDesktop {
             BackColor=Color.FromArgb(245,250,253);Font=new Font("Segoe UI",10);
             // Text owns its row height, so font/DPI changes cannot clip descenders or
             // place the size selector over the last line of the Playful Mode guidance.
-            TableLayoutPanel layout=new TableLayoutPanel{AutoSize=true,AutoSizeMode=AutoSizeMode.GrowAndShrink,ColumnCount=2,RowCount=10,
+            TableLayoutPanel layout=new TableLayoutPanel{AutoSize=true,AutoSizeMode=AutoSizeMode.GrowAndShrink,ColumnCount=2,RowCount=11,
                 MinimumSize=new Size(405,0),Padding=new Padding(25,20,25,20),Margin=Padding.Empty};
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,148));layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
             Label title=new Label{Text="A little ocean on your desktop",AutoSize=true,MaximumSize=new Size(355,0),Margin=new Padding(0,0,0,18),Font=new Font("Segoe UI Semibold",14),ForeColor=Color.FromArgb(27,66,91)};
@@ -794,7 +803,9 @@ namespace MochiDesktop {
             playfulActions.Controls.AddRange(new Control[]{status,tryPlayful});
             FlowLayoutPanel buttons=new FlowLayoutPanel{AutoSize=true,AutoSizeMode=AutoSizeMode.GrowAndShrink,WrapContents=false,Anchor=AnchorStyles.Right,Margin=Padding.Empty};
             buttons.Controls.AddRange(new Control[]{cancel,save});
-            Control[] rows={title,startup,roam,playfulMode,playfulHint,null,null,hint,playfulActions,buttons};
+            Button whatsNew=new Button{Text="What's New · "+AppVersion.Text,Name="WhatsNew",AutoSize=true,MinimumSize=new Size(153,30),Margin=new Padding(0,2,0,14)};
+            whatsNew.Click+=delegate{using(ReleaseNotesDialog notes=new ReleaseNotesDialog()){notes.Text="What's New · Mochi";((Button)notes.CancelButton).Text="Back to Settings";notes.ShowDialog(this);}};
+            Control[] rows={title,startup,roam,playfulMode,playfulHint,null,null,hint,playfulActions,whatsNew,buttons};
             for(int i=0;i<rows.Length;i++)if(rows[i]!=null){rows[i].TabIndex=i*2;layout.Controls.Add(rows[i],0,i);layout.SetColumnSpan(rows[i],2);}
             layout.Controls.Add(sl,0,5);layout.Controls.Add(size,1,5);layout.Controls.Add(fl,0,6);layout.Controls.Add(freq,1,6);
             Controls.Add(layout);AcceptButton=save;CancelButton=cancel;ResumeLayout(true);
@@ -861,6 +872,8 @@ namespace MochiDesktop {
         static void Check(bool ok,string message){if(!ok)throw new Exception(message);}
         public static int Run(string path){
             try{
+                if(ReleaseNotesTests.Run(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(path)),"release-notes-test-results.txt"))!=0)
+                    throw new Exception("Release notes tests failed; see release-notes-test-results.txt.");
                 if(UpdateTests.Run(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(path)),"update-test-results.txt"))!=0)
                     throw new Exception("Updater tests failed; see update-test-results.txt.");
                 if(PlayfulTests.Run(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(path)),"playful-test-results.txt"))!=0)

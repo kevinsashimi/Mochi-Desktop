@@ -496,11 +496,11 @@ namespace MochiDesktop {
             worker.RunWorkerAsync();
         }
         void PumpUpdateNotice() {
-            if (pendingUpdateNotice == null || closing || modal || menu.Visible || down || choosingDestination || playful != null ||
+            if (pendingUpdateNotice == null || closing || modal || releaseWelcome != null || menu.Visible || down || choosingDestination || playful != null ||
                 (!manualUpdateCheck && Now < 8)) return;
             Action notice = pendingUpdateNotice; pendingUpdateNotice = null; notice();
         }
-        void BeginUpdateDialog() { CancelInteraction(); swimming = false; modal = true; }
+        void BeginUpdateDialog() { CloseReleaseWelcome(); CancelInteraction(); swimming = false; modal = true; }
         void EndUpdateDialog() { modal = false; Schedule(); PauseAutomaticActivities(); edgeWatch.Reset(Now); }
         void ShowUpdateMessage(string message, MessageBoxIcon icon) {
             BeginUpdateDialog();
