@@ -53,7 +53,7 @@ Four little ways to make a finned friend:
 
 <img src="Project%20Files/previews/guide-drag.gif" alt="Hold the left mouse button on Mochi, drag him across the desktop, and release him at his new spot" width="760">
 
-**Move your pointer nearby.** No click needed: move your pointer around him and watch his curious little face follow along, with gentle bobbing and swaying.
+**Move your pointer nearby.** No click needed: move your pointer around him and watch his curious little face follow along, with gentle bobbing and swaying. When your pointer moves away, he keeps facing the last side he looked toward.
 
 <img src="Project%20Files/previews/guide-pointer.gif" alt="Move the pointer in a circle around Mochi and watch him turn toward it, then relax when the pointer moves away" width="760">
 

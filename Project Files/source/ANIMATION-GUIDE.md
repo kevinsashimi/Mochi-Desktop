@@ -2,7 +2,7 @@
 
 - Every animation in Feed a tiny snack, Pet Mochi, and Play together must have both left-facing and right-facing versions, including all future additions. Use the common mirroring renderers; mirror effects with the body while keeping speech readable.
 - Enumerate both facing variants automatically. Keep tests covering both directions for every animation; do not introduce one-direction exceptions.
-- Preserve the last interaction or movement facing when returning to idle.
+- Preserve the last interaction, movement, or horizontal cursor-gaze facing when returning to idle. Straight up/down gaze retains the previous side; a pointer already outside gaze range does not change it.
 - A single click on Mochi selects a random animation across all categories. Dragging must not trigger a click reaction. No double-click interaction. Come here opens a cancellable screen destination picker and swims to the selected spot; it must not teleport Mochi.
 - Keep Mochi behind other apps and above the desktop background. Preserve settings and the Windows startup toggle when installing updates.
 - Playful Mode is opt-in and settings-only. Keep fin-grab and gentle-bite animations in both directions, with upright icon artwork and readable speech. Rearrange only desktop icon positions through the Shell view; never move, rename, or delete files. Respect Auto arrange, user repositioning, missing icons, and interruptions. The fixture-backed `--playful-self-test` must never touch the real desktop.

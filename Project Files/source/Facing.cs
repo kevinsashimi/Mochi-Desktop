@@ -87,7 +87,7 @@ namespace MochiDesktop {
                     pet.Advance(pet.Now+1,new Point(center.X+(right?-130:130),center.Y));
                     if(!pet.gaze.Active)throw new Exception("Directional idle disabled cursor gaze");
                     pet.Advance(pet.Now+1,away);
-                    if(pet.faceRight!=right || pet.gaze.Active)throw new Exception("Cursor gaze overwrote remembered side");
+                    if(pet.faceRight==right || pet.gaze.Active)throw new Exception("Cursor gaze did not retain its new facing");
                 }
                 HashSet<bool> swims=new HashSet<bool>();
                 for(int i=0;i<100;i++){
@@ -100,6 +100,49 @@ namespace MochiDesktop {
                 }
                 if(swims.Count!=2)throw new Exception("Swims never reached both sides");
                 FacingTests.Run(pet.atlas);
+            }
+        }
+
+        public static void VerifyGazeFacing(){
+            foreach(int size in new[]{144,176,224})foreach(bool playfulEnabled in new[]{false,true})
+            using(Companion pet=new Companion(true)){
+                pet.prefs.Size=size;pet.Size=Renderer.WindowSize(size);
+                pet.prefs.Roam=false;pet.prefs.PlayfulMode=playfulEnabled;
+                double idleDue=pet.nextIdleActivity=pet.Now+10000,swimDue=pet.nextSwim=pet.Now+10001;
+                double playfulDue=pet.nextPlayful=playfulEnabled?pet.Now+10002:Double.PositiveInfinity;
+                Rectangle area=Screen.PrimaryScreen.WorkingArea,body=Renderer.SpriteRect(size);
+                pet.Location=new Point(area.Left+(area.Width-pet.Width)/2,area.Top+(area.Height-pet.Height)/2);
+                Point center=new Point(pet.Left+body.Left+body.Width/2,pet.Top+body.Top+body.Height/2);
+                foreach(bool initiallyRight in new[]{false,true})for(int direction=0;direction<16;direction++){
+                    pet.gaze.Reset();pet.Face(initiallyRight);
+                    double angle=direction*Math.PI/8;
+                    Point nearby=new Point(center.X+(int)(Math.Sin(angle)*130),center.Y-(int)(Math.Cos(angle)*130));
+                    bool expected=nearby.X==center.X?initiallyRight:nearby.X>center.X;
+                    for(int i=0;i<20;i++)pet.Advance(pet.Now+.033,nearby);
+                    if(!pet.gaze.Active || pet.gaze.Direction!=direction)throw new Exception("Facing test did not track direction "+direction);
+                    // Leaving the tracking radius retains the side he last looked toward.
+                    Point distant=new Point(center.X+(int)(Math.Sin(angle)*450),center.Y-(int)(Math.Cos(angle)*450));
+                    pet.Advance(pet.Now+.033,distant);
+                    if(pet.gaze.Active || pet.row!=0 || pet.faceRight!=expected)throw new Exception("Gaze exit lost facing: direction "+direction+", initially right "+initiallyRight);
+                    using(Bitmap actual=pet.RenderFrame())using(Bitmap idle=Renderer.DrawAnimated(pet.atlas,0,pet.Now-pet.actionStart,size,pet.bubble,expected))
+                        FacingTests.Same(actual,idle,"idle after pointer departure");
+                    pet.Advance(pet.Now+1,new Point(center.X+(expected?-450:450),center.Y));
+                    if(pet.faceRight!=expected || pet.gaze.Active)throw new Exception("An already distant pointer changed idle facing");
+                    // Near-vertical tracking should not choose an arbitrary left/right side.
+                    pet.Advance(pet.Now+.033,new Point(center.X,center.Y-130));
+                    for(int i=0;i<20;i++)pet.Advance(pet.Now+.033,new Point(center.X+(i%2==0?-1:1),center.Y-130));
+                    pet.Advance(pet.Now+.033,center);
+                    if(pet.faceRight!=expected || pet.gaze.Active)throw new Exception("Vertical gaze or close pointer changed remembered facing");
+                    if(pet.nextIdleActivity!=idleDue || pet.nextPlayful!=playfulDue || pet.nextSwim!=swimDue)throw new Exception("Gaze facing reset an activity timer");
+                }
+                // A continuous turn across Mochi also replaces the last remembered side.
+                foreach(int side in new[]{-1,1,-1}){
+                    Point pointer=new Point(center.X+side*130,center.Y);
+                    for(int i=0;i<30;i++)pet.Advance(pet.Now+.033,pointer);
+                    if(pet.faceRight!=(side>0))throw new Exception("Crossing pointer did not update facing");
+                }
+                pet.Advance(pet.Now+.033,new Point(center.X-450,center.Y));
+                if(pet.faceRight || pet.gaze.Active)throw new Exception("Final left-facing gaze reverted at idle");
             }
         }
     }

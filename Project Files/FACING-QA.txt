@@ -1,3 +1,31 @@
+Mochi pointer-facing update - version 1.1.8
+
+When the nearby pointer turns Mochi left or right, that visible gaze direction now
+becomes his remembered idle direction. Moving beyond tracking range, or back over
+his body, no longer turns him back to his earlier direction. Straight up/down
+poses retain the previous side, including small pointer movements around vertical.
+A pointer already outside tracking range cannot change his facing.
+
+The change only records the current gaze pose's horizontal side. It does not
+reschedule swimming, Idle Activities, or Playful Mode. Existing smoothing and
+vertical-direction hysteresis remain in use. Interactions and travel still set
+their own facing as before.
+
+Regression coverage uses the actual companion timer and idle renderer: all 16
+pointer directions, both starting facings, all three sizes, and Playful Mode on
+and off. It covers distant and close exits, vertical jitter, continuous reversals,
+and unchanged activity deadlines. The new check fails against the old behavior.
+
+Validation: all 22 regression groups passed under Wine (10 companion, 7 updater,
+5 Playful Mode). A live nonactivating companion also passed real pointer movement
+from right-facing idle to a leftward look and left-facing idle, then a rightward
+look and right-facing idle. Reviewed the rendered poses after both departures.
+The staged, root, and preview ZIP executables match; update.xml records their
+version, size, and SHA-256. Compiled against Microsoft .NET Framework 4.8 reference
+assemblies. A live Windows desktop check remains for the preview user.
+
+Earlier directional animation update (historical notes)
+-------------------------------------------------------
 Mochi directional animation update - 30 September 2026
 
 Implemented: left/right idle memory; all original 13 reactions mirrored in both directions; three new right-facing routines (snack toss, nose boop, bubble surf). Double-click chooses among 29 directional variants. Manual menus retain their own saved cycles; idle activities still rotate feed/pet/play every 3-5 minutes.

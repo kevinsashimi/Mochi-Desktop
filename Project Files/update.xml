@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <MochiUpdate>
-  <Version>1.1.7.0</Version>
+  <Version>1.1.8.0</Version>
   <File>Mochi.exe</File>
-  <Size>5213696</Size>
-  <Sha256>8659cffc35f2c646c12c71d039e45065f22b51ce8d83b368cecd9e0d4be41a30</Sha256>
+  <Size>5216768</Size>
+  <Sha256>9eff649c4170d31fea2e3adae4e14edb3c84a4188c2c9485eea5a422aab93c32</Sha256>
 </MochiUpdate>
