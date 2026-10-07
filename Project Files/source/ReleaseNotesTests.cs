@@ -10,7 +10,17 @@ namespace MochiDesktop {
             try {
                 Version current=AppVersion.Current,older=new Version(1,1,8,0),newer=new Version(9,0,0,0);
                 Check(ReleaseCatalog.Current.Version==current && ReleaseCatalog.Entries[0].Version==current,"current build has no matching release notes");
-                Check(ReleaseCatalog.Entries.Length>=6,"release history is incomplete");
+                foreach(string value in new[]{"1.0.0.0","1.1.0.0","1.1.1.0","1.1.2.0","1.1.3.0"}){
+                    ReleaseEntry found=Array.Find(ReleaseCatalog.Entries,delegate(ReleaseEntry e){return e.Version==Version.Parse(value);});
+                    Check(found!=null,"recovered release missing: "+value);
+                    if(value!="1.0.0.0")Check(found.Title.Contains("preview"),"unpublished build must be labelled as a preview");
+                }
+                ReleaseEntry early=ReleaseCatalog.Entries[ReleaseCatalog.Entries.Length-1];
+                Check(early.Version==null && early.ToString().StartsWith("Early days") && early.Body.Contains("September 2026"),"unversioned origins missing or given a made-up version");
+                foreach(string invalid in new[]{"## Early days - Origins\n- Born\n## 1.0.0 - Later\n- Update","## Early days - Origins\n- Born\n## Early days - Again\n- Born","## 1.0.0 - First\n- Hello\n## 1.0.0 - Duplicate\n- Hello"}){
+                    bool rejected=false;try{ReleaseCatalog.Parse(invalid);}catch(InvalidDataException){rejected=true;}
+                    Check(rejected,"malformed historical ordering was accepted");
+                }
                 Check(!ReleaseCatalog.ShouldAnnounce("",current,false,false),"fresh install should start quietly");
                 Check(ReleaseCatalog.ShouldAnnounce("",current,true,false),"legacy installation should get its first update welcome");
                 Check(ReleaseCatalog.ShouldAnnounce("",current,false,true),"updater restart should get a welcome without existing preferences");

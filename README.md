@@ -97,7 +97,8 @@ Need him to stay nearby? Toggle **Pause swimming** in his menu. You can still fe
 3. Choose a swimming mood: **Calm** (45–90 seconds between swims), **Balanced** (25–55 seconds), or **Energetic** (12–25 seconds).
 4. Turn **Swim around occasionally** on or off, and enable **Start with Windows** if you want him to greet you after signing in.
 5. Feeling mischievous? You can also enable **Playful Mode** here. It starts off disabled.
-6. Click **Save**.
+6. **Quiet Cove wallpaper (static)** starts off. Turn it on for a peaceful underwater backdrop.
+7. Click **Save**.
 
 **Your desktop, your little ocean.** This example picks **Large**, chooses **Energetic**, switches on **Playful Mode**, and saves. Pick whatever suits you!
 
@@ -106,6 +107,18 @@ Need him to stay nearby? Toggle **Pause swimming** in his menu. You can still fe
 Opening `Mochi.exe` again brings up Settings for your existing companion. It does not create a second Mochi.
 
 **Curious what washed ashore?** Choose **What's New** in Settings to browse release notes, including earlier versions. They travel inside the app, so you can read them offline. Opening the notes keeps your unsaved Settings choices; **Back to Settings** brings you right back.
+
+## A quiet cove for your little shark
+
+<img src="Project%20Files/previews/quiet-cove.png" alt="Quiet Cove: a wide underwater sanctuary with sunlit limestone arches, a sheltered grotto, pastel corals and a sandy foreground" width="960">
+
+Welcome to **Quiet Cove**, a still underwater sanctuary painted just for Mochi. Follow a ribbon of sunlit sand between limestone pillars, spot tiny fish in the distance, and let the soft corals bring a little colour to your day. Plenty of room for one very curious whale shark.
+
+The wallpaper is **off by default**, including when upgrading from the live-wallpaper previews. To visit, open **Settings → Quiet Cove wallpaper (static) → Save**. Turn it off or quit Mochi to reveal your usual desktop again. Your Windows wallpaper settings stay untouched, and desktop icons remain usable above the picture.
+
+The painting is **3840 × 2160 pixels**, filling a 4K UHD screen edge to edge without stretching, zooming or a blue border. The original cove stays at its original scale in the centre, surrounded by newly painted grottoes, rippling water and a wider sandy seabed. Smaller screens fit the full painting proportionally; different aspect ratios or displays larger than 4K may still have a blue surround. This is a static image; the previous live scene and artwork have been removed from the app. Mochi still swims, snacks and plays as usual!
+
+Quiet Cove uses the standard Windows Explorer desktop and does not need the old OpenGL renderer. **Wallpaper status** in Settings shows whether it is attached and saves a `wallpaper-status.txt` report if you need help.
 
 ## Playful Mode: tiny fins, a little mischief
 
@@ -135,7 +148,7 @@ Mochi checks GitHub for updates in the background each time he starts. If a newe
 
 You can also choose **Check for updates** from his menu, or **Info** to see your current version. Updates replace only the executable and preserve your preferences. Offline? Mochi keeps you company as usual.
 
-After an update, a little **“Fresh out of the tide!”** card shares the highlights once. Choose **What's New** for the full notes or **Keep swimming** to dismiss it. The card opens without taking keyboard focus and waits while Mochi is busy or his controls are open. You can always catch up through **Settings → What's New** or the [release notes here](CHANGELOG.md).
+After an update, a little **“Fresh out of the tide!”** card shares the highlights once, centred on Mochi's display. Choose **What's New** for the full notes or **Keep swimming** to dismiss it. The card opens without taking keyboard focus and waits while Mochi is busy or his controls are open. You can always catch up through **Settings → What's New** or the [release notes here](CHANGELOG.md).
 
 If you have an older copy without **Check for updates**, quit it and replace it with the [current executable](https://github.com/kevinsashimi/Mochi-Desktop/raw/refs/heads/main/Mochi.exe) once to get the updater.
 
@@ -164,6 +177,8 @@ On Windows, quit Mochi and run this from the repository root in PowerShell. It u
 ```
 
 The default build replaces the root `Mochi.exe` and generates `Project Files/update.xml` with its version, size, and SHA-256 checksum. For a staging build, pass both `-OutputPath '...\Mochi.exe'` and `-UpdateManifestPath '...\update.xml'`, using an existing output directory.
+
+Cloud builds use Microsoft's Roslyn compiler against .NET Framework 4.8 reference assemblies. Avoid Mono's `mcs` for release builds: it can omit the Windows manifest required by desktop wallpaper windows. With Python 3 available, verify the finished EXE using `python3 'Project Files/build-tools/verify-package.py' Mochi.exe 'Project Files/source/app.manifest'`; the static-wallpaper self-test also checks the running app's manifest.
 
 To publish an app update:
 

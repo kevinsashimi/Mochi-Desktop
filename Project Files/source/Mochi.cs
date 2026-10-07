@@ -30,6 +30,8 @@ namespace MochiDesktop {
                 Application.SetCompatibleTextRenderingDefault(false);
                 if (args.Length == 2 && args[0] == "--update-self-test") return UpdateTests.Run(args[1]);
                 if (args.Length == 2 && args[0] == "--playful-self-test") return PlayfulTests.Run(args[1]);
+                if (args.Length == 2 && args[0] == "--wallpaper-preview") return StaticWallpaperTests.Preview(args[1]);
+                if (args.Length == 2 && args[0] == "--wallpaper-self-test") return StaticWallpaperTests.Run(args[1]);
                 if (args.Length == 2 && args[0] == "--release-notes-self-test") return ReleaseNotesTests.Run(args[1]);
                 if (args.Length == 2 && args[0] == "--playful-preview") { PlayfulPreview.Write(args[1]); return 0; }
                 if (args.Length == 2 && args[0] == "--desktop-icons-status") {
@@ -74,7 +76,7 @@ namespace MochiDesktop {
 
     sealed class Preferences {
         public int Size = 176, Frequency = 1, X = int.MinValue, Y = int.MinValue, NextFeed, NextPet, NextPlay;
-        public bool Roam = true, PlayfulMode;
+        public bool Roam = true, PlayfulMode, StaticWallpaper;
         public string LastReleaseNotesVersion = "";
         public bool LoadedFromFile { get; private set; }
         static string FilePath { get { return Path.Combine(Program.DataDirectory,"settings.xml"); } }
@@ -90,6 +92,7 @@ namespace MochiDesktop {
                 p.Y = (int?)x.Element("Y") ?? int.MinValue;
                 p.Roam = (bool?)x.Element("Roam") ?? true;
                 p.PlayfulMode = (bool?)x.Element("PlayfulMode") ?? false;
+                p.StaticWallpaper = (bool?)x.Element("StaticWallpaper") ?? false;
                 p.NextFeed = new FeedRotation((int?)x.Element("NextFeed") ?? 0).Next;
                 p.NextPet = new ReactionRotation((int?)x.Element("NextPet") ?? 0,false).Next;
                 p.NextPlay = new ReactionRotation((int?)x.Element("NextPlay") ?? 0,true).Next;
@@ -102,7 +105,7 @@ namespace MochiDesktop {
             try {
                 string target=filePath??FilePath;
                 XElement x = new XElement("Mochi",new XElement("Size",Size),new XElement("Frequency",Frequency),
-                    new XElement("X",X),new XElement("Y",Y),new XElement("Roam",Roam),new XElement("PlayfulMode",PlayfulMode),new XElement("NextFeed",NextFeed),new XElement("NextPet",NextPet),new XElement("NextPlay",NextPlay),new XElement("LastReleaseNotesVersion",LastReleaseNotesVersion));
+                    new XElement("X",X),new XElement("Y",Y),new XElement("Roam",Roam),new XElement("PlayfulMode",PlayfulMode),new XElement("StaticWallpaper",StaticWallpaper),new XElement("NextFeed",NextFeed),new XElement("NextPet",NextPet),new XElement("NextPlay",NextPlay),new XElement("LastReleaseNotesVersion",LastReleaseNotesVersion));
                 x.Save(target + ".tmp");
                 if(File.Exists(target)) File.Replace(target+".tmp",target,null); else File.Move(target+".tmp",target);
             } catch { /* A read-only portable folder must not prevent quitting. */ }
@@ -234,6 +237,7 @@ namespace MochiDesktop {
 
     sealed partial class Companion : Form {
         readonly Atlas atlas=new Atlas(); readonly Preferences prefs; readonly Random random;
+        StaticWallpaper wallpaper;
         static readonly FeedKind[] SurpriseFeeds=(FeedKind[])Enum.GetValues(typeof(FeedKind));
         static readonly ReactionKind[] SurpriseReactions=(ReactionKind[])Enum.GetValues(typeof(ReactionKind));
         static readonly string[] Introductions={
@@ -281,7 +285,7 @@ namespace MochiDesktop {
             tray=new NotifyIcon{Icon=trayIcon,Text="Mochi - right-click for controls",Visible=true,ContextMenuStrip=menu};
             tray.MouseClick+=delegate(object sender,MouseEventArgs e){if(e.Button==MouseButtons.Left)menu.Show(Cursor.Position);};
             timer.Interval=15; timer.Tick+=delegate{Tick();};
-            Shown+=delegate{Native.KeepBehindApps(Handle);StartWelcome();PrepareReleaseWelcome();timer.Start();Render();StartUpdateCheck(false);};
+            Shown+=delegate{wallpaper=new StaticWallpaper();wallpaper.SetEnabled(prefs.StaticWallpaper);Native.KeepBehindApps(Handle);StartWelcome();PrepareReleaseWelcome();timer.Start();Render();StartUpdateCheck(false);};
             SetStyle(ControlStyles.StandardDoubleClick,false);
             MouseDown+=OnDown;MouseMove+=OnMove;MouseUp+=OnUp;
             MouseCaptureChanged+=delegate{if(!Capture && down){down=false;dragging=false;Schedule();PauseAutomaticActivities();}};
@@ -497,10 +501,10 @@ namespace MochiDesktop {
             CloseReleaseWelcome();
             bool wasEnabled=prefs.PlayfulMode,tryPlayful=false;
             CancelInteraction();swimming=false;modal=true;
-            try{using(SettingsDialog d=new SettingsDialog(prefs,GetPlayfulStatus)){if(d.ShowDialog()==DialogResult.OK){Size=Renderer.WindowSize(prefs.Size);Location=Motion.Clamp(Location,Size,Screen.FromRectangle(Bounds).WorkingArea);tryPlayful=d.TryPlayfulRequested;Save();}}}
+            try{using(SettingsDialog d=new SettingsDialog(prefs,GetPlayfulStatus,delegate{return wallpaper==null?"Quiet Cove is off.":wallpaper.GetStatus();})){if(d.ShowDialog()==DialogResult.OK){Size=Renderer.WindowSize(prefs.Size);Location=Motion.Clamp(Location,Size,Screen.FromRectangle(Bounds).WorkingArea);tryPlayful=d.TryPlayfulRequested;if(wallpaper!=null)wallpaper.SetEnabled(prefs.StaticWallpaper);Save();}}}
             finally{modal=false;Schedule();PauseAutomaticActivities();ApplyPlayfulSettings(wasEnabled,tryPlayful);edgeWatch.Reset(Now);}
         }
-        void Help(){swimming=false;modal=true;try{MessageBox.Show("Click Mochi for a random petting, play, or snack animation.\nDrag Mochi to move to another spot or monitor.\nMove your pointer nearby and Mochi will look toward it.\n\nRight-click Mochi or the tray icon to choose petting, feeding, play, swimming, settings, or Quit.\nClick the tray icon to open the controls.\nChoose Come here, then click a spot for Mochi to swim to.\nPress Escape or right-click to cancel choosing a spot.\n\nEvery 1-3 minutes, Mochi takes turns snacking, enjoying a pat, and playing (Idle Activities). Playful Mode has its own clock. Due animations wait their turn, with a 3-second pause between them.\n\nMochi occasionally swims within the current screen.\nSettings lets you pause swimming or change its frequency, size, and Windows startup.\n\nEnable Playful Mode in Settings for a little mischief: every 3-5 minutes, Mochi borrows a desktop icon and swims it to a new spot. Files stay in place. Turn off Auto arrange icons on your desktop to allow this.\n\nMochi runs locally. Only update checks and downloads use the internet. No account or microphone is needed.","Hello, I'm Mochi",MessageBoxButtons.OK,MessageBoxIcon.Information);}finally{modal=false;Schedule();PauseAutomaticActivities();}}
+        void Help(){swimming=false;modal=true;try{MessageBox.Show("Click Mochi for a random petting, play, or snack animation.\nDrag Mochi to move to another spot or monitor.\nMove your pointer nearby and Mochi will look toward it.\n\nRight-click Mochi or the tray icon to choose petting, feeding, play, swimming, settings, or Quit.\nClick the tray icon to open the controls.\nChoose Come here, then click a spot for Mochi to swim to.\nPress Escape or right-click to cancel choosing a spot.\n\nEvery 1-3 minutes, Mochi takes turns snacking, enjoying a pat, and playing (Idle Activities). Playful Mode has its own clock. Due animations wait their turn, with a 3-second pause between them.\n\nMochi occasionally swims within the current screen.\nSettings lets you pause swimming or change its frequency, size, and Windows startup.\nQuiet Cove is an optional static ocean wallpaper, off by default. Turn it on in Settings and choose Save. Turning it off or quitting Mochi reveals your usual wallpaper.\n\nEnable Playful Mode in Settings for a little mischief: every 3-5 minutes, Mochi borrows a desktop icon and swims it to a new spot. Files stay in place. Turn off Auto arrange icons on your desktop to allow this.\n\nMochi runs locally. Only update checks and downloads use the internet. No account or microphone is needed.","Hello, I'm Mochi",MessageBoxButtons.OK,MessageBoxIcon.Information);}finally{modal=false;Schedule();PauseAutomaticActivities();}}
         protected override void WndProc(ref Message m){
             if(m.Msg==0x46 && m.LParam!=IntPtr.Zero){ // WM_WINDOWPOSCHANGING
                 Native.WindowPosition position=(Native.WindowPosition)Marshal.PtrToStructure(m.LParam,typeof(Native.WindowPosition));
@@ -516,9 +520,9 @@ namespace MochiDesktop {
             }
             base.WndProc(ref m);
         }
-        protected override void OnFormClosing(FormClosingEventArgs e){closing=true;CloseReleaseWelcome();CancelPlayful();StopUpdateChecks();StopPicking();timer.Stop();Save();base.OnFormClosing(e);}
+        protected override void OnFormClosing(FormClosingEventArgs e){closing=true;if(wallpaper!=null){wallpaper.Dispose();wallpaper=null;}CloseReleaseWelcome();CancelPlayful();StopUpdateChecks();StopPicking();timer.Stop();Save();base.OnFormClosing(e);}
         protected override void Dispose(bool disposing){
-            if(disposing && !resourcesDisposed){resourcesDisposed=true;CloseReleaseWelcome();CancelPlayful();StopUpdateChecks();StopPicking();Microsoft.Win32.SystemEvents.DisplaySettingsChanged-=DisplayChanged;
+            if(disposing && !resourcesDisposed){resourcesDisposed=true;if(wallpaper!=null){wallpaper.Dispose();wallpaper=null;}CloseReleaseWelcome();CancelPlayful();StopUpdateChecks();StopPicking();Microsoft.Win32.SystemEvents.DisplaySettingsChanged-=DisplayChanged;
                 timer.Dispose();if(tray!=null){tray.Visible=false;tray.Dispose();}if(trayIcon!=null)trayIcon.Dispose();if(menu!=null)menu.Dispose();if(canvas!=null)canvas.Dispose();atlas.Dispose();}
             base.Dispose(disposing);
         }
@@ -772,25 +776,29 @@ namespace MochiDesktop {
 
     sealed class SettingsDialog : Form {
         public bool TryPlayfulRequested { get; private set; }
-        public SettingsDialog(Preferences prefs,Func<string> playfulStatus=null){
+        public SettingsDialog(Preferences prefs,Func<string> playfulStatus=null,Func<string> wallpaperStatus=null){
             SuspendLayout();
-            Text="Mochi Settings";AutoScaleDimensions=new SizeF(96,96);AutoScaleMode=AutoScaleMode.Dpi;AutoSize=true;AutoSizeMode=AutoSizeMode.GrowAndShrink;
+            Text="Mochi Settings";AutoScaleDimensions=new SizeF(96,96);AutoScaleMode=AutoScaleMode.Dpi;ClientSize=new Size(435,680);
             FormBorderStyle=FormBorderStyle.FixedDialog;MaximizeBox=false;MinimizeBox=false;StartPosition=FormStartPosition.CenterScreen;TopMost=false;
             BackColor=Color.FromArgb(245,250,253);Font=new Font("Segoe UI",10);
             // Text owns its row height, so font/DPI changes cannot clip descenders or
             // place the size selector over the last line of the Playful Mode guidance.
-            TableLayoutPanel layout=new TableLayoutPanel{AutoSize=true,AutoSizeMode=AutoSizeMode.GrowAndShrink,ColumnCount=2,RowCount=11,
-                MinimumSize=new Size(405,0),Padding=new Padding(25,20,25,20),Margin=Padding.Empty};
+            TableLayoutPanel layout=new TableLayoutPanel{AutoSize=true,AutoSizeMode=AutoSizeMode.GrowAndShrink,ColumnCount=2,RowCount=13,Dock=DockStyle.Top,
+                MinimumSize=new Size(405,0),Padding=new Padding(25,20,25,8),Margin=Padding.Empty};
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,148));layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
             Label title=new Label{Text="A little ocean on your desktop",AutoSize=true,MaximumSize=new Size(355,0),Margin=new Padding(0,0,0,18),Font=new Font("Segoe UI Semibold",14),ForeColor=Color.FromArgb(27,66,91)};
             CheckBox startup=new CheckBox{Text="Start with Windows",Checked=Startup.Enabled,AutoSize=true,Margin=new Padding(0,0,0,14)};
             CheckBox roam=new CheckBox{Text="Swim around occasionally",Checked=prefs.Roam,AutoSize=true,Margin=new Padding(0,0,0,14)};
             CheckBox playfulMode=new CheckBox{Text="Playful Mode (mischievous icons)",Name="PlayfulModeToggle",Checked=prefs.PlayfulMode,AutoSize=true,Margin=new Padding(0,0,0,6)};
             Label playfulHint=new Label{Text="Every 3-5 minutes, borrow and rearrange an icon.\nFiles stay in place. Turn off desktop Auto arrange\nicons; turn off Align icons to grid for smooth swims.",Name="PlayfulModeHint",AutoSize=true,MaximumSize=new Size(355,0),Margin=new Padding(0,0,0,18),ForeColor=Color.FromArgb(80,103,117),Font=new Font("Segoe UI",9)};
+            CheckBox wallpaperMode=new CheckBox{Text="Quiet Cove wallpaper (static)",Name="StaticWallpaperToggle",Checked=prefs.StaticWallpaper,AutoSize=true,Margin=new Padding(0,0,0,6)};
+            Label wallpaperHint=new Label{Text="A still underwater sanctuary for Mochi.\nOff by default. Enable it and choose Save.\nTurn it off to reveal your usual wallpaper.",Name="StaticWallpaperHint",AutoSize=true,MaximumSize=new Size(355,0),Margin=new Padding(0,0,0,10),ForeColor=Color.FromArgb(80,103,117),Font=new Font("Segoe UI",9)};
+            LinkLabel wallpaperInfo=new LinkLabel{Text="Wallpaper status",Name="WallpaperStatus",AutoSize=true,Margin=new Padding(0,0,0,18)};
+            wallpaperInfo.LinkClicked+=delegate{MessageBox.Show((wallpaperStatus==null?"Open Settings from Mochi to check Quiet Cove.":wallpaperStatus())+"\n\nSave to apply changes. Quitting Mochi restores your usual wallpaper.","Quiet Cove",MessageBoxButtons.OK,MessageBoxIcon.Information);};
             Label sl=new Label{Text="Mochi's size",AutoSize=true,Anchor=AnchorStyles.Left,Margin=new Padding(0,0,8,14)};
-            ComboBox size=new ComboBox{Name="MochiSize",TabIndex=11,DropDownStyle=ComboBoxStyle.DropDownList,Dock=DockStyle.Fill,Margin=new Padding(0,0,0,14)};size.Items.AddRange(new object[]{"Small","Medium","Large"});size.SelectedIndex=prefs.Size==144?0:prefs.Size==224?2:1;
+            ComboBox size=new ComboBox{Name="MochiSize",TabIndex=17,DropDownStyle=ComboBoxStyle.DropDownList,Dock=DockStyle.Fill,Margin=new Padding(0,0,0,14)};size.Items.AddRange(new object[]{"Small","Medium","Large"});size.SelectedIndex=prefs.Size==144?0:prefs.Size==224?2:1;
             Label fl=new Label{Text="Swim frequency",AutoSize=true,Anchor=AnchorStyles.Left,Margin=new Padding(0,0,8,14)};
-            ComboBox freq=new ComboBox{TabIndex=13,DropDownStyle=ComboBoxStyle.DropDownList,Dock=DockStyle.Fill,Margin=new Padding(0,0,0,14)};freq.Items.AddRange(new object[]{"Calm (45-90 seconds)","Balanced (25-55 seconds)","Energetic (12-25 seconds)"});freq.SelectedIndex=prefs.Frequency;
+            ComboBox freq=new ComboBox{TabIndex=19,DropDownStyle=ComboBoxStyle.DropDownList,Dock=DockStyle.Fill,Margin=new Padding(0,0,0,14)};freq.Items.AddRange(new object[]{"Calm (45-90 seconds)","Balanced (25-55 seconds)","Energetic (12-25 seconds)"});freq.SelectedIndex=prefs.Frequency;
             Label hint=new Label{Text="Turn off Start with Windows for manual startup.\nMochi stays on this computer and runs offline.",AutoSize=true,MaximumSize=new Size(355,0),Margin=new Padding(0,0,0,14),ForeColor=Color.FromArgb(80,103,117),Font=new Font("Segoe UI",9)};
             Button save=new Button{Text="Save",AutoSize=true,MinimumSize=new Size(101,32),Margin=new Padding(10,0,0,0)};Button cancel=new Button{Text="Cancel",AutoSize=true,MinimumSize=new Size(101,32),Margin=Padding.Empty,DialogResult=DialogResult.Cancel};
             Button status=new Button{Text="Playful status",Name="PlayfulStatus",AutoSize=true,MinimumSize=new Size(153,30),Margin=new Padding(0,0,12,0)};
@@ -798,17 +806,20 @@ namespace MochiDesktop {
             Button tryPlayful=new Button{Text="Save && try now",Name="TryPlayfulNow",Enabled=playfulMode.Checked,AutoSize=true,MinimumSize=new Size(183,30),Margin=Padding.Empty};
             playfulMode.CheckedChanged+=delegate{tryPlayful.Enabled=playfulMode.Checked;};
             tryPlayful.Click+=delegate{TryPlayfulRequested=true;save.PerformClick();};
-            save.Click+=delegate{try{if(startup.Checked!=Startup.Enabled)Startup.SetEnabled(startup.Checked);prefs.Roam=roam.Checked;prefs.PlayfulMode=playfulMode.Checked;prefs.Size=new[]{144,176,224}[size.SelectedIndex];prefs.Frequency=freq.SelectedIndex;DialogResult=DialogResult.OK;Close();}catch(Exception ex){MessageBox.Show("Couldn't update Windows startup. Your other settings haven't changed.\n\n"+ex.Message,"Mochi Settings",MessageBoxButtons.OK,MessageBoxIcon.Warning);}};
-            FlowLayoutPanel playfulActions=new FlowLayoutPanel{AutoSize=true,AutoSizeMode=AutoSizeMode.GrowAndShrink,WrapContents=false,Margin=new Padding(0,0,0,10)};
+            save.Click+=delegate{try{if(startup.Checked!=Startup.Enabled)Startup.SetEnabled(startup.Checked);prefs.Roam=roam.Checked;prefs.PlayfulMode=playfulMode.Checked;prefs.StaticWallpaper=wallpaperMode.Checked;prefs.Size=new[]{144,176,224}[size.SelectedIndex];prefs.Frequency=freq.SelectedIndex;DialogResult=DialogResult.OK;Close();}catch(Exception ex){MessageBox.Show("Couldn't update Windows startup. Your other settings haven't changed.\n\n"+ex.Message,"Mochi Settings",MessageBoxButtons.OK,MessageBoxIcon.Warning);}};
+            FlowLayoutPanel playfulActions=new FlowLayoutPanel{AutoSize=true,AutoSizeMode=AutoSizeMode.GrowAndShrink,WrapContents=true,Dock=DockStyle.Top,Margin=new Padding(0,0,0,10)};
             playfulActions.Controls.AddRange(new Control[]{status,tryPlayful});
             FlowLayoutPanel buttons=new FlowLayoutPanel{AutoSize=true,AutoSizeMode=AutoSizeMode.GrowAndShrink,WrapContents=false,Anchor=AnchorStyles.Right,Margin=Padding.Empty};
             buttons.Controls.AddRange(new Control[]{cancel,save});
             Button whatsNew=new Button{Text="What's New · "+AppVersion.Text,Name="WhatsNew",AutoSize=true,MinimumSize=new Size(153,30),Margin=new Padding(0,2,0,14)};
             whatsNew.Click+=delegate{using(ReleaseNotesDialog notes=new ReleaseNotesDialog()){notes.Text="What's New · Mochi";((Button)notes.CancelButton).Text="Back to Settings";notes.ShowDialog(this);}};
-            Control[] rows={title,startup,roam,playfulMode,playfulHint,null,null,hint,playfulActions,whatsNew,buttons};
+            Control[] rows={title,startup,wallpaperMode,wallpaperHint,wallpaperInfo,roam,playfulMode,playfulHint,null,null,hint,playfulActions,whatsNew};
             for(int i=0;i<rows.Length;i++)if(rows[i]!=null){rows[i].TabIndex=i*2;layout.Controls.Add(rows[i],0,i);layout.SetColumnSpan(rows[i],2);}
-            layout.Controls.Add(sl,0,5);layout.Controls.Add(size,1,5);layout.Controls.Add(fl,0,6);layout.Controls.Add(freq,1,6);
-            Controls.Add(layout);AcceptButton=save;CancelButton=cancel;ResumeLayout(true);
+            layout.Controls.Add(sl,0,8);layout.Controls.Add(size,1,8);layout.Controls.Add(fl,0,9);layout.Controls.Add(freq,1,9);
+            Panel scroll=new Panel{Name="SettingsScroll",Dock=DockStyle.Fill,AutoScroll=true};scroll.Controls.Add(layout);
+            FlowLayoutPanel footer=new FlowLayoutPanel{Name="SettingsFooter",Dock=DockStyle.Bottom,AutoSize=true,FlowDirection=FlowDirection.RightToLeft,WrapContents=false,Padding=new Padding(20,12,20,16)};footer.Controls.Add(buttons);
+            Controls.Add(scroll);Controls.Add(footer);AcceptButton=save;CancelButton=cancel;ResumeLayout(true);
+            Shown+=delegate{ReleaseStyle.Fit(this,Screen.FromControl(this).WorkingArea);};
         }
     }
 
@@ -872,6 +883,8 @@ namespace MochiDesktop {
         static void Check(bool ok,string message){if(!ok)throw new Exception(message);}
         public static int Run(string path){
             try{
+                if(StaticWallpaperTests.Run(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(path)),"wallpaper-test-results.txt"))!=0)
+                    throw new Exception("Static wallpaper tests failed; see wallpaper-test-results.txt");
                 if(ReleaseNotesTests.Run(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(path)),"release-notes-test-results.txt"))!=0)
                     throw new Exception("Release notes tests failed; see release-notes-test-results.txt.");
                 if(UpdateTests.Run(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(path)),"update-test-results.txt"))!=0)

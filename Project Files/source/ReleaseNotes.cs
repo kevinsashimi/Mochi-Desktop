@@ -11,7 +11,7 @@ namespace MochiDesktop {
     sealed class ReleaseEntry {
         public Version Version;
         public string Title, Body;
-        public override string ToString(){return AppVersion.Display(Version)+"  ·  "+Title;}
+        public override string ToString(){return (Version==null?"Early days":AppVersion.Display(Version))+"  ·  "+Title;}
         public string[] Highlights {
             get {
                 List<string> lines=new List<string>();
@@ -31,10 +31,10 @@ namespace MochiDesktop {
         internal static ReleaseEntry[] Parse(string markdown){
             List<ReleaseEntry> entries=new List<ReleaseEntry>();ReleaseEntry entry=null;
             foreach(string raw in markdown.Replace("\r","").Split('\n')){
-                Match heading=Regex.Match(raw,@"^## (\d+\.\d+\.\d+) - (.+)$");
+                Match heading=Regex.Match(raw,@"^## (\d+\.\d+\.\d+|Early days) - (.+)$");
                 if(heading.Success){
-                    Version version=Version.Parse(heading.Groups[1].Value+".0");
-                    if(entries.Count>0 && version>=entries[entries.Count-1].Version)throw new InvalidDataException("Release notes must list distinct versions newest first.");
+                    Version version=heading.Groups[1].Value=="Early days"?null:Version.Parse(heading.Groups[1].Value+".0");
+                    if(entries.Count>0 && (entries[entries.Count-1].Version==null || (version!=null && version>=entries[entries.Count-1].Version)))throw new InvalidDataException("Release notes must list distinct versions newest first, followed by early history.");
                     entry=new ReleaseEntry{Version=version,Title=heading.Groups[2].Value,Body=""};entries.Add(entry);
                 }else if(entry!=null)entry.Body+=raw+"\n";
             }
@@ -60,6 +60,10 @@ namespace MochiDesktop {
             form.MinimumSize=new Size(Math.Min(form.MinimumSize.Width,area.Width),Math.Min(form.MinimumSize.Height,area.Height));
             form.Size=new Size(Math.Min(form.Width,area.Width),Math.Min(form.Height,area.Height));
             form.Location=Motion.Clamp(form.Location,form.Size,area);
+        }
+        public static void Center(Form form,Rectangle area){
+            Fit(form,area);
+            form.Location=new Point(area.Left+(area.Width-form.Width)/2,area.Top+(area.Height-form.Height)/2);
         }
     }
 
@@ -149,7 +153,7 @@ namespace MochiDesktop {
             releaseWelcome=card;
             card.FormClosed+=delegate{if(releaseWelcome==card)releaseWelcome=null;};
             Rectangle area=Screen.FromRectangle(Bounds).WorkingArea;
-            card.Shown+=delegate{card.Location=new Point(area.Right-card.Width-18,area.Bottom-card.Height-18);ReleaseStyle.Fit(card,area);};
+            card.Shown+=delegate{ReleaseStyle.Center(card,area);};
             card.Show();releaseWelcomePending=false;RememberReleaseNotes();
         }
         void CloseReleaseWelcome(){if(releaseWelcome!=null)releaseWelcome.Close();}

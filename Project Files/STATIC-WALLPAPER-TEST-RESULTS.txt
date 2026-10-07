@@ -1,0 +1,32 @@
+Mochi 1.2.8.0 — Quiet Cove seam repair verification
+8 October 2026 (Asia/Singapore)
+
+Executable bytes: 20610048
+Executable SHA-256: 1e7f678cd390a1192d57eb258f64ff379a536116e71f3e2ee37731e02a61bbca
+Artwork SHA-256: 78e1f0ec4e5f6e14001205a2714b7bbf450f4ecbe617fce42d7afadbf51d93e3
+
+Microsoft Roslyn 4.8 against .NET Framework 4.8 references. Native Windows manifest, icon and version checks passed.
+
+Current build checks under Wine: 5 wallpaper groups, 3 release-notes groups, 5 native presentation groups and 2 full-image comparisons passed.
+Visual inspection: the reported rectangular rock cut is removed in the final PNG and actual desktop close-up; the repair blends across the former centre boundary.
+
+PASS: fresh installs and legacy live-wallpaper settings default off; Save, Cancel, opt-in/out persistence and other preferences.
+PASS: new Quiet Cove resource; live artwork/renderer absent; full 3840 x 2160 painting at 1:1 with no surround; proportional ultrawide, portrait and smaller layouts without enlargement.
+PASS: disabled wallpaper loads no artwork; turning off cancels startup and releases its resources.
+PASS: controlled native fixtures select classic and raised desktop hosts, reject unsafe hosts, and detect host changes/destruction.
+PASS: native Windows compatibility manifest and actionable Win32 diagnostic errors.
+
+PASS: embedded current release and ordered history; fresh/legacy installs, updater restarts, manual upgrades, repeated launches and downgrades; persisted release marker preserves preferences.
+PASS: deferred welcome respects controls and ongoing actions; no lost pending notice, no timer resets, no repeated welcome; fresh install records a quiet baseline.
+PASS: offline release selection and readable formatted content; dedicated Settings entry.
+
+PASS: layered wallpaper is visibly above an opaque background and below icons; repairs z-order, passes input, preserves focus, and reveals original wallpaper on disposal (controlled fixture, not Explorer).
+PASS: {Width=1920, Height=1080} native static pixels, no continuous repaints, child attachment, click-through, focus preservation and cleanup.
+PASS: {Width=3840, Height=2160} native static pixels, no continuous repaints, child attachment, click-through, focus preservation and cleanup.
+PASS: {Width=3440, Height=1440} native static pixels, no continuous repaints, child attachment, click-through, focus preservation and cleanup.
+PASS: {Width=1080, Height=1920} native static pixels, no continuous repaints, child attachment, click-through, focus preservation and cleanup.
+
+PASS: all 8,294,400 native 4K desktop pixels match the repaired wallpaper source; no enlargement, cropping or surround.
+PASS: the 383,893 retouched pixels are confined to the local rock repair; all other wallpaper pixels are unchanged.
+
+Limits: controlled native fixtures under Wine, not a real Windows Explorer desktop. Unrelated companion/updater suites were not rerun for this artwork-only repair. See STATIC-WALLPAPER-QA.md.
