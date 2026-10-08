@@ -1,14 +1,35 @@
-Mochi 1.2.8.0 — Quiet Cove seam repair verification
-8 October 2026 (Asia/Singapore)
+Mochi 1.2.11.0 - Quiet Cove single soft sun verification
+Verified 9 October 2026 (Asia/Singapore).
 
-Executable bytes: 20610048
-Executable SHA-256: 1e7f678cd390a1192d57eb258f64ff379a536116e71f3e2ee37731e02a61bbca
-Artwork SHA-256: 78e1f0ec4e5f6e14001205a2714b7bbf450f4ecbe617fce42d7afadbf51d93e3
+Executable bytes: 20990464
+Executable SHA-256: e8e28ae9a58d7165be7a5778c5e7ad39f65e3b6239666300f73d941006973977
+Artwork SHA-256: ef969cbb6be92b1021271366578c73094d75ed8ac061db4c66c8fe8b7390b9eb
 
-Microsoft Roslyn 4.8 against .NET Framework 4.8 references. Native Windows manifest, icon and version checks passed.
+Built with Microsoft Roslyn against .NET Framework 4.8 reference assemblies.
+Native Windows compatibility/DPI manifest, icon and version resources verified.
 
-Current build checks under Wine: 5 wallpaper groups, 3 release-notes groups, 5 native presentation groups and 2 full-image comparisons passed.
-Visual inspection: the reported rectangular rock cut is removed in the final PNG and actual desktop close-up; the repair blends across the former centre boundary.
+Passed under Wine: 5 wallpaper test groups, 3 release-note groups,
+5 native presentation groups and 2 image comparisons.
+
+The approved smaller artwork preview supplied the lighting direction for a new
+native 1536 x 1024 surface patch. The patch was blended into the previous
+3840 x 2160 artwork at its original pixel scale. No scene enlargement was used.
+The larger, lower single sunlight opening has a soft golden glow; the second
+lower hotspot is removed. Pixels outside the local edit, including the seabed
+and previous foreground rock repair, are preserved exactly.
+
+The exact current build renders at 3840 x 2160 with every captured pixel equal
+to the embedded artwork. 1080p, ultrawide and portrait displays preserve its
+proportions. Settings Save/Cancel, default-off behavior, persistence, input
+transparency, focus, background restoration and release notes passed.
+
+An initial display capture inherited a leftover 1280 x 1024 preview desktop.
+After closing that preview process, the same executable passed all native
+presentation checks on a fresh 4000 x 2300 test desktop.
+
+These are controlled native fixtures under Wine, not a real Windows Explorer
+desktop. Unrelated companion/updater tests were not repeated for this artwork
+change. See STATIC-WALLPAPER-QA.md for Windows checks.
 
 PASS: fresh installs and legacy live-wallpaper settings default off; Save, Cancel, opt-in/out persistence and other preferences.
 PASS: new Quiet Cove resource; live artwork/renderer absent; full 3840 x 2160 painting at 1:1 with no surround; proportional ultrawide, portrait and smaller layouts without enlargement.
@@ -26,7 +47,5 @@ PASS: {Width=3840, Height=2160} native static pixels, no continuous repaints, ch
 PASS: {Width=3440, Height=1440} native static pixels, no continuous repaints, child attachment, click-through, focus preservation and cleanup.
 PASS: {Width=1080, Height=1920} native static pixels, no continuous repaints, child attachment, click-through, focus preservation and cleanup.
 
-PASS: all 8,294,400 native 4K desktop pixels match the repaired wallpaper source; no enlargement, cropping or surround.
-PASS: the 383,893 retouched pixels are confined to the local rock repair; all other wallpaper pixels are unchanged.
-
-Limits: controlled native fixtures under Wine, not a real Windows Explorer desktop. Unrelated companion/updater suites were not rerun for this artwork-only repair. See STATIC-WALLPAPER-QA.md.
+PASS: actual 3840 x 2160 desktop capture matches every pixel of the embedded wallpaper, with no resampling or blue surround.
+PASS: native patch dimensions and provenance verified; all pixels outside the local surface correction remain identical to 1.2.10, including the seabed and previous rock repair.

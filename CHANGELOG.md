@@ -2,6 +2,13 @@
 
 Small updates for your little ocean. These notes are also available offline in Settings → What's New.
 
+## 1.2.11 - A softer sun over Quiet Cove
+
+### A little golden calm
+- Quiet Cove now has one larger sunlight opening, sitting a little lower on the ocean surface with a soft golden glow and gentle rays.
+- Removed the second bright patch that looked like another sun. The detailed reef, seabed and repaired rocks remain in place.
+- The wallpaper stays static and optional, with a full 3840 × 2160 painting that fills a 4K UHD display without stretching or zooming.
+
 ## 1.2.10 - Bubble-powered zoomies!
 
 ### Tiny shark, turbo fins

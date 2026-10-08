@@ -6,6 +6,8 @@ The live wallpaper engine and its artwork are removed. Quiet Cove is a new still
 
 Inspect the rocks above the starfish at full size: there must be no rectangular cut, doubled boulder outline or abrupt horizontal edge. The surrounding sand, starfish and rest of the scene should retain their previous appearance.
 
+For 1.2.11, check that there is only one larger, softly glowing sunlight opening near the top of the water surface, sitting slightly below the top edge. The former lower bright patch should read as blue water, with no separate sun or ray source. Check the water and kelp around the lighting repair for seams. The 4K artwork retains its original pixel scale and all pixels outside this local repair, including the seabed and repaired foreground rocks.
+
 ## Try on Windows 10 and 11
 
 1. Quit any older Mochi instance. Extract the preview folder and run Mochi.exe. Check that your normal wallpaper appears and Settings has Quiet Cove unchecked.

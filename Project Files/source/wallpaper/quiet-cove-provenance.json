@@ -3,26 +3,24 @@
     3840,
     2160
   ],
-  "sha256": "78e1f0ec4e5f6e14001205a2714b7bbf450f4ecbe617fce42d7afadbf51d93e3",
-  "base_artwork_sha256": "00f9ca5a80d75920273b68074ac5909d22ed46dde68cc65a53123ea19a06fb5d",
-  "repair_bounds": [
-    663,
-    1231,
-    1678,
-    1727
+  "sha256": "ef969cbb6be92b1021271366578c73094d75ed8ac061db4c66c8fe8b7390b9eb",
+  "base_artwork_sha256": "78e1f0ec4e5f6e14001205a2714b7bbf450f4ecbe617fce42d7afadbf51d93e3",
+  "base_release": "1.2.10",
+  "surface_patch_sha256": "ecc0ceb0245525cff5e6e66d84e8109246da57c184cca13b4926bae2184650c9",
+  "patch_rectangle": [
+    1480,
+    0,
+    1536,
+    1024
   ],
-  "changed_pixels": 383893,
+  "changed_bounds": [
+    1491,
+    0,
+    3008,
+    1011
+  ],
+  "changed_pixels": 978530,
   "unchanged_outside_local_repair": true,
-  "original_centre": {
-    "rectangle": [
-      1084,
-      609,
-      1672,
-      941
-    ],
-    "scale_unchanged": true,
-    "pixel_exact": false,
-    "note": "The localized rock repair crosses the old centre boundary to remove the rectangular overlap."
-  },
-  "method": "Image-generated local rock-junction repair, composed at native pixel size with a soft elliptical mask; no restoration of the old rectangular centre; no resizing of the 4K artwork."
+  "resized": false,
+  "method": "Native-pixel image-generated surface correction with a feathered water-corridor mask; one larger, lower sunlight opening with a soft glow. Original reef, seabed and prior rock repair retained outside the mask."
 }
