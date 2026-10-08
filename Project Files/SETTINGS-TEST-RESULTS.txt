@@ -1,0 +1,24 @@
+Mochi 1.2.10.0 - automatic roaming Settings touch-up
+Verified 8 October 2026 under Wine.
+
+Executable bytes: 21021184
+Executable SHA-256: 482f98a578caba91b41c6c5cb34db7dcfc19b0873f52cbf6e8d8a209d710481c
+
+PASS: built with Microsoft Roslyn and .NET Framework 4.8 reference assemblies.
+PASS: Windows compatibility/DPI manifest, application icon and version resources.
+PASS: all five existing Playful test groups, including Settings Save/Cancel,
+       preference persistence, old settings compatibility and Save & try now.
+
+Interactive desktop check using the exact build, with screenshots inspected:
+- Description is fully readable and Swim frequency sits directly below it.
+- With roaming enabled, the frequency dropdown is available.
+- Selected Energetic, then unchecked roaming: both label and dropdown grey out.
+- Saved and reopened Settings: roaming remains off and Energetic is retained.
+- Rechecked roaming: dropdown immediately re-enables, still on Energetic.
+- Cancel leaves the saved roaming preference off and the frequency unchanged.
+- Playful description, size selector and buttons remain visible without overlap.
+
+Verification was scoped to this Settings change. Previous boost/manual controls
+verification is recorded separately for its earlier executable hash; the full
+38-group suite was not rerun for this UI-only adjustment.
+Actual Windows rendering and desktop scaling remain user QA.

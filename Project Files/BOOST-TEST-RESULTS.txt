@@ -1,0 +1,21 @@
+Mochi 1.2.10.0 — Manual controls and boost verification
+
+Executable bytes: 21020160
+Executable SHA-256: 17b8faf0d416a0384e9018d940007cb34ecbf8cd66e7834558b7c16fda737d1f
+
+Built with Microsoft Roslyn against .NET Framework 4.8 reference assemblies.
+Windows manifest, icon and version resources verified.
+
+PASS: all 38 self-test groups (10 companion, 7 updater, 5 Playful Mode, 3 release notes, 5 static wallpaper, 8 Manual mode/boost/controls).
+PASS: native keyboard/mouse UI under Wine: menu selection, focused instruction overlay, WASD/arrow diagonal steering, release braking, protected app typing, Escape, right-click, focus transfer, repeat entry and quitting cleanup.
+PASS: short eight-direction/resting boosts, exact five-second recharge, no held-key repeats, mode re-entry protection, bounded bubble/heart wake, all pose sizes, quiet/spoken variety and effect cleanup.
+PASS: desktop Space input, cooldown feedback, click-through wake, focus retained while boosting, active-effect cleanup on app switch, and ordinary Space typing outside Manual mode.
+PASS: twelve dedicated illustrated frames across Rocket Grin, Wheee, and Wink & Giggle; random style selection without immediate repeats; all 16 headings at three sizes, mirror geometry, clear speech/status margins, settling and real-timer rendering/cleanup.
+PASS: full-screen visible-body movement bounds at all edges/corners, sizes and normal/boosted poses; no transparent padding barrier; edge-safe recharge feedback and normal placement restored on exit.
+PASS: three stacked controls, first-use hold, gradual fade, stationary pointer/held-key behavior, mouse recall and repeated fade.
+PASS: native desktop reaches the very top through the card area, card stays clear of Mochi, mouse recall retains focus, and Escape/right-click exit while the card is hidden.
+PASS: guide and embedded release notes updated for 1.2.10.
+
+The desktop UI check confirms the native window order and visible rendering;
+Wine's compositor may tint layered windows slightly differently from Windows.
+Actual Windows desktop scaling and multi-monitor arrangements remain user QA.

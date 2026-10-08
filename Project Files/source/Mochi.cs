@@ -139,6 +139,8 @@ namespace MochiDesktop {
         public readonly Bitmap[,] Frames = new Bitmap[11,8];
         public readonly Bitmap[,] Feeding = new Bitmap[3,8];
         public readonly Bitmap[,] Illustrated = new Bitmap[4,8];
+        public readonly Bitmap[,] Boost = new Bitmap[3,4];
+        public readonly float BoostRadius;
         public readonly Bitmap Snack;
         readonly Dictionary<Bitmap,Rectangle> opaqueBounds=new Dictionary<Bitmap,Rectangle>();
         public static readonly int[][] Durations = {
@@ -162,6 +164,14 @@ namespace MochiDesktop {
                 if(source.Width!=1536 || source.Height!=832)throw new InvalidDataException("Unexpected illustrated interaction sheet dimensions.");
                 for(int r=0;r<4;r++)for(int c=0;c<8;c++)Illustrated[r,c]=source.Clone(new Rectangle(c*192,r*208,192,208),PixelFormat.Format32bppArgb);
             }
+            using(Stream stream=Assembly.GetExecutingAssembly().GetManifestResourceStream("Mochi.Boost"))using(Bitmap source=new Bitmap(stream)){
+                if(source.Width!=768 || source.Height!=624)throw new InvalidDataException("Unexpected boost sheet dimensions.");
+                for(int r=0;r<3;r++)for(int c=0;c<4;c++)Boost[r,c]=source.Clone(new Rectangle(c*192,r*208,192,208),PixelFormat.Format32bppArgb);
+            }
+            // Ignore near-invisible alpha dust when measuring the shared visible
+            // footprint; it must not make every boost pose unnecessarily small.
+            foreach(Bitmap pose in Boost)for(int y=0;y<208;y++)for(int x=0;x<192;x++)if(pose.GetPixel(x,y).A>20)
+                BoostRadius=Math.Max(BoostRadius,(float)Math.Sqrt((x-96)*(x-96)+(y-104)*(y-104)));
         }
         public static int FrameAt(int row,double ms) {
             int[] d=Durations[row]; int sum=0; foreach(int x in d) sum+=x;
@@ -174,7 +184,7 @@ namespace MochiDesktop {
             for(int y=0;y<bitmap.Height;y++)for(int x=0;x<bitmap.Width;x++)if(bitmap.GetPixel(x,y).A>0){left=Math.Min(left,x);top=Math.Min(top,y);right=Math.Max(right,x+1);bottom=Math.Max(bottom,y+1);}
             cached=right>left?Rectangle.FromLTRB(left,top,right,bottom):new Rectangle(0,0,bitmap.Width,bitmap.Height);opaqueBounds[bitmap]=cached;return cached;
         }
-        public void Dispose(){opaqueBounds.Clear();foreach(Bitmap b in Frames)if(b!=null)b.Dispose();foreach(Bitmap b in Feeding)if(b!=null)b.Dispose();foreach(Bitmap b in Illustrated)if(b!=null)b.Dispose();if(Snack!=null)Snack.Dispose();}
+        public void Dispose(){opaqueBounds.Clear();foreach(Bitmap b in Frames)if(b!=null)b.Dispose();foreach(Bitmap b in Feeding)if(b!=null)b.Dispose();foreach(Bitmap b in Illustrated)if(b!=null)b.Dispose();foreach(Bitmap b in Boost)if(b!=null)b.Dispose();if(Snack!=null)Snack.Dispose();}
     }
 
     static class Motion {
@@ -233,7 +243,7 @@ namespace MochiDesktop {
                     }
                 }
         }
-        static GraphicsPath Round(RectangleF r,float radius){GraphicsPath p=new GraphicsPath();float d=radius*2;p.AddArc(r.X,r.Y,d,d,180,90);p.AddArc(r.Right-d,r.Y,d,d,270,90);p.AddArc(r.Right-d,r.Bottom-d,d,d,0,90);p.AddArc(r.X,r.Bottom-d,d,d,90,90);p.CloseFigure();return p;}
+        internal static GraphicsPath Round(RectangleF r,float radius){GraphicsPath p=new GraphicsPath();float d=radius*2;p.AddArc(r.X,r.Y,d,d,180,90);p.AddArc(r.Right-d,r.Y,d,d,270,90);p.AddArc(r.Right-d,r.Bottom-d,d,d,0,90);p.AddArc(r.X,r.Bottom-d,d,d,90,90);p.CloseFigure();return p;}
     }
 
     sealed partial class Companion : Form {
@@ -445,7 +455,7 @@ namespace MochiDesktop {
         void Advance(double now,Point cursor){
             if(simulation)simulatedTime=now;
             if(closing || modal || menu.Visible)return;
-            if(manualSwim!=null){AdvanceManualSwimming(now);return;}
+            if(manualSwim!=null){AdvanceManualSwimming(now,cursor);return;}
             if(AdvancePlayful(now))return;
             if(choosingDestination){frame=Atlas.FrameAt(0,(now-actionStart)*1000);Render();return;}
             if(startupHintAt>=0 && now>=startupHintAt)Act(0,StartupHint,4);
@@ -490,6 +500,7 @@ namespace MochiDesktop {
             Render();
         }
         Bitmap RenderFrame(){
+            if(manualSwim!=null)return RenderManualFrame();
             if(playful!=null)return PlayfulRenderer.Draw(atlas,playful,Now,prefs.Size);
             return reaction!=null?ReactionRenderer.Draw(atlas,reaction,Now,prefs.Size):feeding!=null?FeedRenderer.Draw(atlas,feeding.Sample(Now),prefs.Size,feeding.Speech(Now)):
                 (swimming || manualMoving)?GazeRenderer.Draw(atlas,swimGaze.Sample(Now),prefs.Size,bubble,true,swimFraction):
@@ -511,7 +522,7 @@ namespace MochiDesktop {
             try{using(SettingsDialog d=new SettingsDialog(prefs,GetPlayfulStatus,delegate{return wallpaper==null?"Quiet Cove is off.":wallpaper.GetStatus();})){if(d.ShowDialog()==DialogResult.OK){Size=Renderer.WindowSize(prefs.Size);Location=Motion.Clamp(Location,Size,Screen.FromRectangle(Bounds).WorkingArea);tryPlayful=d.TryPlayfulRequested;if(wallpaper!=null)wallpaper.SetEnabled(prefs.StaticWallpaper);Save();}}}
             finally{modal=false;Schedule();PauseAutomaticActivities();ApplyPlayfulSettings(wasEnabled,tryPlayful);edgeWatch.Reset(Now);}
         }
-        void Help(){swimming=false;modal=true;try{MessageBox.Show("Click Mochi for a random petting, play, or snack animation.\nDrag Mochi to move to another spot or monitor.\nMove your pointer nearby and Mochi will look toward it.\n\nRight-click Mochi or the tray icon to choose petting, feeding, play, swimming, settings, or Quit.\nClick the tray icon to open the controls.\nChoose Come here, then click a spot for Mochi to swim to.\nPress Escape or right-click to cancel choosing a spot.\nChoose Manual mode to steer with WASD or arrow keys. Hold two directions for diagonal swimming.\nEscape, right-click, or switching apps ends Manual mode.\n\nEvery 1-3 minutes, Mochi takes turns snacking, enjoying a pat, and playing (Idle Activities). Playful Mode has its own clock. Due animations wait their turn, with a 3-second pause between them.\n\nMochi occasionally swims within the current screen.\nSettings lets you pause swimming or change its frequency, size, and Windows startup.\nQuiet Cove is an optional static ocean wallpaper, off by default. Turn it on in Settings and choose Save. Turning it off or quitting Mochi reveals your usual wallpaper.\n\nEnable Playful Mode in Settings for a little mischief: every 3-5 minutes, Mochi borrows a desktop icon and swims it to a new spot. Files stay in place. Turn off Auto arrange icons on your desktop to allow this.\n\nMochi runs locally. Only update checks and downloads use the internet. No account or microphone is needed.","Hello, I'm Mochi",MessageBoxButtons.OK,MessageBoxIcon.Information);}finally{modal=false;Schedule();PauseAutomaticActivities();}}
+        void Help(){swimming=false;modal=true;try{MessageBox.Show("Click Mochi for a random petting, play, or snack animation.\nDrag Mochi to move to another spot or monitor.\nMove your pointer nearby and Mochi will look toward it.\n\nRight-click Mochi or the tray icon to choose petting, feeding, play, swimming, settings, or Quit.\nClick the tray icon to open the controls.\nChoose Come here, then click a spot for Mochi to swim to.\nPress Escape or right-click to cancel choosing a spot.\nChoose Manual mode to steer with WASD or arrow keys. Hold two directions for diagonal swimming.\nTap Space for a short bubble boost; the meter shows its 5-second recharge.\nEscape, right-click, or switching apps ends Manual mode.\n\nEvery 1-3 minutes, Mochi takes turns snacking, enjoying a pat, and playing (Idle Activities). Playful Mode has its own clock. Due animations wait their turn, with a 3-second pause between them.\n\nMochi occasionally swims within the current screen.\nSettings lets you pause swimming or change its frequency, size, and Windows startup.\nQuiet Cove is an optional static ocean wallpaper, off by default. Turn it on in Settings and choose Save. Turning it off or quitting Mochi reveals your usual wallpaper.\n\nEnable Playful Mode in Settings for a little mischief: every 3-5 minutes, Mochi borrows a desktop icon and swims it to a new spot. Files stay in place. Turn off Auto arrange icons on your desktop to allow this.\n\nMochi runs locally. Only update checks and downloads use the internet. No account or microphone is needed.","Hello, I'm Mochi",MessageBoxButtons.OK,MessageBoxIcon.Information);}finally{modal=false;Schedule();PauseAutomaticActivities();}}
         protected override void WndProc(ref Message m){
             if(m.Msg==0x46 && m.LParam!=IntPtr.Zero && manualSwim==null){ // WM_WINDOWPOSCHANGING
                 Native.WindowPosition position=(Native.WindowPosition)Marshal.PtrToStructure(m.LParam,typeof(Native.WindowPosition));
@@ -791,12 +802,13 @@ namespace MochiDesktop {
             BackColor=Color.FromArgb(245,250,253);Font=new Font("Segoe UI",10);
             // Text owns its row height, so font/DPI changes cannot clip descenders or
             // place the size selector over the last line of the Playful Mode guidance.
-            TableLayoutPanel layout=new TableLayoutPanel{AutoSize=true,AutoSizeMode=AutoSizeMode.GrowAndShrink,ColumnCount=2,RowCount=13,Dock=DockStyle.Top,
+            TableLayoutPanel layout=new TableLayoutPanel{AutoSize=true,AutoSizeMode=AutoSizeMode.GrowAndShrink,ColumnCount=2,RowCount=14,Dock=DockStyle.Top,
                 MinimumSize=new Size(405,0),Padding=new Padding(25,20,25,8),Margin=Padding.Empty};
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,148));layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
             Label title=new Label{Text="A little ocean on your desktop",AutoSize=true,MaximumSize=new Size(355,0),Margin=new Padding(0,0,0,18),Font=new Font("Segoe UI Semibold",14),ForeColor=Color.FromArgb(27,66,91)};
             CheckBox startup=new CheckBox{Text="Start with Windows",Checked=Startup.Enabled,AutoSize=true,Margin=new Padding(0,0,0,14)};
-            CheckBox roam=new CheckBox{Text="Swim around occasionally",Checked=prefs.Roam,AutoSize=true,Margin=new Padding(0,0,0,14)};
+            CheckBox roam=new CheckBox{Text="Swim around occasionally",Name="RoamToggle",Checked=prefs.Roam,AutoSize=true,Margin=new Padding(0,0,0,6)};
+            Label roamHint=new Label{Text="Let Mochi explore your desktop on his own.\nChoose how often with Swim frequency below.",Name="RoamHint",AutoSize=true,MaximumSize=new Size(355,0),Margin=new Padding(0,0,0,10),ForeColor=Color.FromArgb(80,103,117),Font=new Font("Segoe UI",9)};
             CheckBox playfulMode=new CheckBox{Text="Playful Mode (mischievous icons)",Name="PlayfulModeToggle",Checked=prefs.PlayfulMode,AutoSize=true,Margin=new Padding(0,0,0,6)};
             Label playfulHint=new Label{Text="Every 3-5 minutes, borrow and rearrange an icon.\nFiles stay in place. Turn off desktop Auto arrange\nicons; turn off Align icons to grid for smooth swims.",Name="PlayfulModeHint",AutoSize=true,MaximumSize=new Size(355,0),Margin=new Padding(0,0,0,18),ForeColor=Color.FromArgb(80,103,117),Font=new Font("Segoe UI",9)};
             CheckBox wallpaperMode=new CheckBox{Text="Quiet Cove wallpaper (static)",Name="StaticWallpaperToggle",Checked=prefs.StaticWallpaper,AutoSize=true,Margin=new Padding(0,0,0,6)};
@@ -804,9 +816,10 @@ namespace MochiDesktop {
             LinkLabel wallpaperInfo=new LinkLabel{Text="Wallpaper status",Name="WallpaperStatus",AutoSize=true,Margin=new Padding(0,0,0,18)};
             wallpaperInfo.LinkClicked+=delegate{MessageBox.Show((wallpaperStatus==null?"Open Settings from Mochi to check Quiet Cove.":wallpaperStatus())+"\n\nSave to apply changes. Quitting Mochi restores your usual wallpaper.","Quiet Cove",MessageBoxButtons.OK,MessageBoxIcon.Information);};
             Label sl=new Label{Text="Mochi's size",AutoSize=true,Anchor=AnchorStyles.Left,Margin=new Padding(0,0,8,14)};
-            ComboBox size=new ComboBox{Name="MochiSize",TabIndex=17,DropDownStyle=ComboBoxStyle.DropDownList,Dock=DockStyle.Fill,Margin=new Padding(0,0,0,14)};size.Items.AddRange(new object[]{"Small","Medium","Large"});size.SelectedIndex=prefs.Size==144?0:prefs.Size==224?2:1;
-            Label fl=new Label{Text="Swim frequency",AutoSize=true,Anchor=AnchorStyles.Left,Margin=new Padding(0,0,8,14)};
-            ComboBox freq=new ComboBox{TabIndex=19,DropDownStyle=ComboBoxStyle.DropDownList,Dock=DockStyle.Fill,Margin=new Padding(0,0,0,14)};freq.Items.AddRange(new object[]{"Calm (45-90 seconds)","Balanced (25-55 seconds)","Energetic (12-25 seconds)"});freq.SelectedIndex=prefs.Frequency;
+            ComboBox size=new ComboBox{Name="MochiSize",TabIndex=21,DropDownStyle=ComboBoxStyle.DropDownList,Dock=DockStyle.Fill,Margin=new Padding(0,0,0,14)};size.Items.AddRange(new object[]{"Small","Medium","Large"});size.SelectedIndex=prefs.Size==144?0:prefs.Size==224?2:1;
+            Label fl=new Label{Text="Swim frequency",Name="SwimFrequencyLabel",Enabled=roam.Checked,AutoSize=true,Anchor=AnchorStyles.Left,Margin=new Padding(0,0,8,14)};
+            ComboBox freq=new ComboBox{Name="SwimFrequency",Enabled=roam.Checked,TabIndex=15,DropDownStyle=ComboBoxStyle.DropDownList,Dock=DockStyle.Fill,Margin=new Padding(0,0,0,14)};freq.Items.AddRange(new object[]{"Calm (45-90 seconds)","Balanced (25-55 seconds)","Energetic (12-25 seconds)"});freq.SelectedIndex=prefs.Frequency;
+            roam.CheckedChanged+=delegate{fl.Enabled=freq.Enabled=roam.Checked;};
             Label hint=new Label{Text="Turn off Start with Windows for manual startup.\nMochi stays on this computer and runs offline.",AutoSize=true,MaximumSize=new Size(355,0),Margin=new Padding(0,0,0,14),ForeColor=Color.FromArgb(80,103,117),Font=new Font("Segoe UI",9)};
             Button save=new Button{Text="Save",AutoSize=true,MinimumSize=new Size(101,32),Margin=new Padding(10,0,0,0)};Button cancel=new Button{Text="Cancel",AutoSize=true,MinimumSize=new Size(101,32),Margin=Padding.Empty,DialogResult=DialogResult.Cancel};
             Button status=new Button{Text="Playful status",Name="PlayfulStatus",AutoSize=true,MinimumSize=new Size(153,30),Margin=new Padding(0,0,12,0)};
@@ -821,9 +834,9 @@ namespace MochiDesktop {
             buttons.Controls.AddRange(new Control[]{cancel,save});
             Button whatsNew=new Button{Text="What's New · "+AppVersion.Text,Name="WhatsNew",AutoSize=true,MinimumSize=new Size(153,30),Margin=new Padding(0,2,0,14)};
             whatsNew.Click+=delegate{using(ReleaseNotesDialog notes=new ReleaseNotesDialog()){notes.Text="What's New · Mochi";((Button)notes.CancelButton).Text="Back to Settings";notes.ShowDialog(this);}};
-            Control[] rows={title,startup,wallpaperMode,wallpaperHint,wallpaperInfo,roam,playfulMode,playfulHint,null,null,hint,playfulActions,whatsNew};
+            Control[] rows={title,startup,wallpaperMode,wallpaperHint,wallpaperInfo,roam,roamHint,null,playfulMode,playfulHint,null,hint,playfulActions,whatsNew};
             for(int i=0;i<rows.Length;i++)if(rows[i]!=null){rows[i].TabIndex=i*2;layout.Controls.Add(rows[i],0,i);layout.SetColumnSpan(rows[i],2);}
-            layout.Controls.Add(sl,0,8);layout.Controls.Add(size,1,8);layout.Controls.Add(fl,0,9);layout.Controls.Add(freq,1,9);
+            layout.Controls.Add(sl,0,10);layout.Controls.Add(size,1,10);layout.Controls.Add(fl,0,7);layout.Controls.Add(freq,1,7);
             Panel scroll=new Panel{Name="SettingsScroll",Dock=DockStyle.Fill,AutoScroll=true};scroll.Controls.Add(layout);
             FlowLayoutPanel footer=new FlowLayoutPanel{Name="SettingsFooter",Dock=DockStyle.Bottom,AutoSize=true,FlowDirection=FlowDirection.RightToLeft,WrapContents=false,Padding=new Padding(20,12,20,16)};footer.Controls.Add(buttons);
             Controls.Add(scroll);Controls.Add(footer);AcceptButton=save;CancelButton=cancel;ResumeLayout(true);
@@ -839,6 +852,7 @@ namespace MochiDesktop {
         [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
         [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
         [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+        [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr window,int command);
         [DllImport("user32.dll")] public static extern bool DestroyIcon(IntPtr icon);
         [DllImport("user32.dll",SetLastError=true)] static extern bool SetWindowPos(IntPtr window,IntPtr insertAfter,int x,int y,int width,int height,uint flags);
         delegate bool EnumWindowCallback(IntPtr window,IntPtr parameter);
@@ -878,6 +892,12 @@ namespace MochiDesktop {
             if(!SetWindowPos(window,new IntPtr(-1),0,0,0,0,0x13))
                 throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
         }
+        public static void PlaceManualGuideBehind(IntPtr guide,IntPtr pet){
+            // Pin the card below the pet, including after activation and recall.
+            // Test the existing neighbor to avoid redundant window-position work.
+            if(GetWindow(guide,3)==pet)return;
+            if(!SetWindowPos(guide,pet,0,0,0,0,0x13))throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+        }
         [DllImport("user32.dll")] static extern IntPtr GetDC(IntPtr h);
         [DllImport("user32.dll")] static extern int ReleaseDC(IntPtr h,IntPtr dc);
         [DllImport("gdi32.dll")] static extern IntPtr CreateCompatibleDC(IntPtr dc);
@@ -885,9 +905,9 @@ namespace MochiDesktop {
         [DllImport("gdi32.dll")] static extern IntPtr SelectObject(IntPtr dc,IntPtr obj);
         [DllImport("gdi32.dll")] static extern bool DeleteObject(IntPtr obj);
         [DllImport("user32.dll",SetLastError=true)] static extern bool UpdateLayeredWindow(IntPtr hwnd,IntPtr dest,ref P location,ref S size,IntPtr src,ref P origin,int key,ref Blend blend,int flags);
-        public static void SetBitmap(IntPtr window,Bitmap bitmap,Point location){
+        public static void SetBitmap(IntPtr window,Bitmap bitmap,Point location,byte opacity=255){
             IntPtr screen=GetDC(IntPtr.Zero),memory=CreateCompatibleDC(screen),handle=IntPtr.Zero,old=IntPtr.Zero;
-            try{handle=bitmap.GetHbitmap(Color.FromArgb(0));old=SelectObject(memory,handle);P pos=new P(location.X,location.Y),zero=new P(0,0);S size=new S(bitmap.Width,bitmap.Height);Blend blend=new Blend{op=0,flags=0,alpha=255,format=1};
+            try{handle=bitmap.GetHbitmap(Color.FromArgb(0));old=SelectObject(memory,handle);P pos=new P(location.X,location.Y),zero=new P(0,0);S size=new S(bitmap.Width,bitmap.Height);Blend blend=new Blend{op=0,flags=0,alpha=opacity,format=1};
                 if(!UpdateLayeredWindow(window,screen,ref pos,ref size,memory,ref zero,0,ref blend,2))throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
             }finally{if(old!=IntPtr.Zero)SelectObject(memory,old);if(handle!=IntPtr.Zero)DeleteObject(handle);DeleteDC(memory);ReleaseDC(IntPtr.Zero,screen);}
         }

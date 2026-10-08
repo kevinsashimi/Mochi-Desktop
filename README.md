@@ -91,10 +91,12 @@ Press **Escape** or **right-click** to cancel picking a spot. Switching to anoth
 **Your turn at the helm!** Choose **Manual mode** from the same right-click menu. A little “You're the captain!” card appears:
 
 - Hold **WASD** or the **arrow keys** to swim up, left, down or right. Combine two directions to swim diagonally.
-- Release the keys to gently stop. Mochi stays within his current screen, clear of the taskbar.
+- Tap **Space** for a short **Boost**! Mochi leaves a bubbly wake with three new animations: a big-grin **Rocket dash**, an eyes-closed **Wheee!**, or a **Wink & giggle** with a little fin flourish. They work whichever way you steer, and sometimes come with a cheeky line. “Tiny shark. Turbo fins!”
+- Boost follows your steering direction, or your last swimming direction if you're resting. The little meter beneath him shows the **5-second recharge**. Release Space before tapping again; holding it won't repeat boosts.
+- Release the direction keys to gently stop. Mochi stays within his current screen and can reach all its edges.
 - Press **Esc**, **right-click**, or switch to another app to finish. Keyboard controls only apply while Manual mode is open.
 
-During Manual mode, Mochi swims above your open windows so you can see him. When you finish, he returns to his usual place behind apps. Idle Activities and Playful Mode wait their turn, preserving pending timers and leaving a three-second pause before resuming. To explore another monitor, drag Mochi there first, then choose Manual mode again.
+During Manual mode, Mochi can swim right to every edge of the current screen, above your open windows. The controls card gently fades after you start steering; move your mouse to bring it back. When you finish, he returns to his usual place behind apps. Idle Activities and Playful Mode wait their turn, preserving pending timers and leaving a three-second pause before resuming. To explore another monitor, drag Mochi there first, then choose Manual mode again.
 
 Need him to stay nearby? Toggle **Pause swimming** in his menu. You can still feed, pet, and play with him, and both **Come here** and **Manual mode** still work. His occasional idle activities continue too.
 
@@ -102,8 +104,8 @@ Need him to stay nearby? Toggle **Pause swimming** in his menu. You can still fe
 
 1. Open Mochi's menu and choose **Settings...**.
 2. Pick **Small**, **Medium**, or **Large**.
-3. Choose a swimming mood: **Calm** (45–90 seconds between swims), **Balanced** (25–55 seconds), or **Energetic** (12–25 seconds).
-4. Turn **Swim around occasionally** on or off, and enable **Start with Windows** if you want him to greet you after signing in.
+3. Enable **Swim around occasionally** to let Mochi explore on his own. **Swim frequency** below it sets how often: **Calm** (45–90 seconds), **Balanced** (25–55 seconds), or **Energetic** (12–25 seconds). Turning roaming off greys out the frequency control and remembers your choice for next time.
+4. Enable **Start with Windows** if you want him to greet you after signing in.
 5. Feeling mischievous? You can also enable **Playful Mode** here. It starts off disabled.
 6. **Quiet Cove wallpaper (static)** starts off. Turn it on for a peaceful underwater backdrop.
 7. Click **Save**.

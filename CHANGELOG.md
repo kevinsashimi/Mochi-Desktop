@@ -2,6 +2,20 @@
 
 Small updates for your little ocean. These notes are also available offline in Settings → What's New.
 
+## 1.2.10 - Bubble-powered zoomies!
+
+### Tiny shark, turbo fins
+- Tap Space in Manual mode for a short, speedy boost, with a five-second recharge shown beneath Mochi.
+- Leave a swirling trail of sparkling bubbles, with the occasional heart bubble, faster fin wiggles and sometimes a playful quip.
+- Three new illustrated boost animations bring a rocket grin, an eyes-closed “wheee!” and a wink that turns into a giggle. His fins kick and relax in both directions, with a brief happy settle after the dash and no immediately repeated expression.
+
+### A little room to zoom
+- Boost in your steering direction, or your last swimming direction when resting. Screen edges still keep Mochi safe.
+- Holding Space does not repeat boosts. Leaving and re-entering Manual mode keeps the remaining cooldown; other activities still wait their turn.
+- Swim right to every edge of the screen in Manual mode. Empty space around Mochi and his speech bubble no longer acts as an invisible barrier.
+- A tidy controls card lists swimming, boosting and exiting on separate lines. It gently fades after you start using the controls; move your mouse to see it again. The card moves out of Mochi's path when he approaches.
+- Settings explains automatic roaming, with Swim frequency directly underneath. Turning off Swim around occasionally greys out its frequency control while remembering your choice.
+
 ## 1.2.9 - You're the captain!
 
 ### A swim at your fingertips
