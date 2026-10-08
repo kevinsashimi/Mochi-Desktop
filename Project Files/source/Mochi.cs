@@ -32,6 +32,7 @@ namespace MochiDesktop {
                 if (args.Length == 2 && args[0] == "--playful-self-test") return PlayfulTests.Run(args[1]);
                 if (args.Length == 2 && args[0] == "--wallpaper-preview") return StaticWallpaperTests.Preview(args[1]);
                 if (args.Length == 2 && args[0] == "--wallpaper-self-test") return StaticWallpaperTests.Run(args[1]);
+                if (args.Length == 2 && args[0] == "--manual-self-test") return ManualSwimTests.Run(args[1]);
                 if (args.Length == 2 && args[0] == "--release-notes-self-test") return ReleaseNotesTests.Run(args[1]);
                 if (args.Length == 2 && args[0] == "--playful-preview") { PlayfulPreview.Write(args[1]); return 0; }
                 if (args.Length == 2 && args[0] == "--desktop-icons-status") {
@@ -298,6 +299,7 @@ namespace MochiDesktop {
             menu.Items.Add("Play together",null,delegate{Play();});
             menu.Items.Add("Swim now",null,delegate{BeginSwim(true);});
             menu.Items.Add("Come here",null,delegate{if(simulation)ChooseDestination();else BeginInvoke((Action)ChooseDestination);});
+            menu.Items.Add("Manual mode",null,delegate{if(simulation)StartManualSwimming();else BeginInvoke((Action)StartManualSwimming);});
             menu.Items.Add(new ToolStripSeparator());
             pauseItem=new ToolStripMenuItem("Pause swimming");pauseItem.CheckOnClick=false;
             pauseItem.Click+=delegate{prefs.Roam=!prefs.Roam;swimming=false;Schedule();Save();Act(3,prefs.Roam?"Let's explore a little.":"I'll stay right here.",2.5);};menu.Items.Add(pauseItem);
@@ -327,6 +329,7 @@ namespace MochiDesktop {
             EndRegularAnimation();feeding=null;reaction=null;
         }
         bool StartDueActivity(double now){
+            if(manualSwim!=null)return false;
             if(Program.TestUi || now<automaticReadyAt || (!simulation && Control.MouseButtons!=MouseButtons.None))return false;
             bool idleDue=now>=nextIdleActivity, playfulDue=prefs.PlayfulMode && now>=nextPlayful;
             // Absolute deadlines form a bounded queue: one turn per clock, oldest
@@ -343,7 +346,7 @@ namespace MochiDesktop {
             nextIdleCategory=(nextIdleCategory+1)%3;
         }
         void StartWelcome(){Act(0,Introductions[random.Next(Introductions.Length)],4);startupHintAt=Now+4;}
-        void Act(int r,string text,double duration){CancelPlayful();CancelRegularAnimation();StopPicking();guidedSwim=false;startupHintAt=-1;gaze.Reset();swimming=false;row=r;actionStart=Now;actionUntil=Now+duration;automaticReadyAt=Math.Max(automaticReadyAt,actionUntil+3);bubble=text;bubbleUntil=Now+Math.Max(3.5,duration);Schedule();}
+        void Act(int r,string text,double duration){StopManualSwimming();CancelPlayful();CancelRegularAnimation();StopPicking();guidedSwim=false;startupHintAt=-1;gaze.Reset();swimming=false;row=r;actionStart=Now;actionUntil=Now+duration;automaticReadyAt=Math.Max(automaticReadyAt,actionUntil+3);bubble=text;bubbleUntil=Now+Math.Max(3.5,duration);Schedule();}
         void Pet(){edgeWatch.Reset(Now);StartReaction(false);}
         void Play(){edgeWatch.Reset(Now);StartReaction(true);}
         void StartReaction(bool play){
@@ -354,6 +357,7 @@ namespace MochiDesktop {
         void Face(bool right){faceRight=right;}
         void FaceTravel(double dx){if(Math.Abs(dx)>=1)faceRight=dx>0;}
         void StartReaction(ReactionKind kind,bool? right=null,bool automatic=false){
+            StopManualSwimming();
             CancelPlayful();
             CancelRegularAnimation();
             StopPicking();
@@ -369,6 +373,7 @@ namespace MochiDesktop {
             StartFeeding(kind);
         }
         void StartFeeding(FeedKind kind,bool? right=null,bool automatic=false){
+            StopManualSwimming();
             CancelPlayful();
             CancelRegularAnimation();
             StopPicking();
@@ -389,7 +394,7 @@ namespace MochiDesktop {
             if(variant.Feed.HasValue)StartFeeding(variant.Feed.Value,variant.Right);
             else StartReaction(variant.Reaction.Value,variant.Right);
         }
-        void CancelInteraction(){CancelPlayful();StopPicking();startupHintAt=-1;if(feeding!=null || reaction!=null){CancelRegularAnimation();row=0;frame=0;actionUntil=0;actionStart=Now;Schedule();}}
+        void CancelInteraction(){StopManualSwimming();CancelPlayful();StopPicking();startupHintAt=-1;if(feeding!=null || reaction!=null){CancelRegularAnimation();row=0;frame=0;actionUntil=0;actionStart=Now;Schedule();}}
         void OnDown(object s,MouseEventArgs e){
             if(e.Button==MouseButtons.Left || e.Button==MouseButtons.Right)edgeWatch.Reset(Now);
             if(e.Button==MouseButtons.Right){CancelInteraction();swimming=false;menu.Show(Cursor.Position);return;}
@@ -417,6 +422,7 @@ namespace MochiDesktop {
         }
         void BeginSwim(bool requested){
             if(down || modal || (!requested&&!prefs.Roam))return;
+            StopManualSwimming();
             if(requested)CancelPlayful();
             CancelRegularAnimation();
             StopPicking();
@@ -433,12 +439,13 @@ namespace MochiDesktop {
             if(closing)return;
             if(Program.SettingsRequest!=null && Program.SettingsRequest.WaitOne(0) && !modal){OpenSettings();return;}
             PumpReleaseWelcome();
-            if(Now>=nextBackgroundCheck){Native.KeepBehindApps(Handle);nextBackgroundCheck=Now+1;}
+            if(manualSwim==null && Now>=nextBackgroundCheck){Native.KeepBehindApps(Handle);nextBackgroundCheck=Now+1;}
             Advance(Now,Cursor.Position);
         }
         void Advance(double now,Point cursor){
             if(simulation)simulatedTime=now;
             if(closing || modal || menu.Visible)return;
+            if(manualSwim!=null){AdvanceManualSwimming(now);return;}
             if(AdvancePlayful(now))return;
             if(choosingDestination){frame=Atlas.FrameAt(0,(now-actionStart)*1000);Render();return;}
             if(startupHintAt>=0 && now>=startupHintAt)Act(0,StartupHint,4);
@@ -485,7 +492,7 @@ namespace MochiDesktop {
         Bitmap RenderFrame(){
             if(playful!=null)return PlayfulRenderer.Draw(atlas,playful,Now,prefs.Size);
             return reaction!=null?ReactionRenderer.Draw(atlas,reaction,Now,prefs.Size):feeding!=null?FeedRenderer.Draw(atlas,feeding.Sample(Now),prefs.Size,feeding.Speech(Now)):
-                swimming?GazeRenderer.Draw(atlas,swimGaze.Sample(Now),prefs.Size,bubble,true,swimFraction):
+                (swimming || manualMoving)?GazeRenderer.Draw(atlas,swimGaze.Sample(Now),prefs.Size,bubble,true,swimFraction):
                 gaze.Active?GazeRenderer.Draw(atlas,gaze.Sample(Now),prefs.Size,bubble):
                 row<9?Renderer.DrawAnimated(atlas,row,Now-actionStart,prefs.Size,bubble,faceRight && row!=1 && row!=2):Renderer.Draw(atlas,row,frame,prefs.Size,bubble);
         }
@@ -495,7 +502,7 @@ namespace MochiDesktop {
             try{Native.SetBitmap(Handle,next,Location);}catch{next.Dispose();throw;}
             if(canvas!=null)canvas.Dispose();canvas=next;
         }
-        void DisplayChanged(object sender,EventArgs e){if(IsDisposed)return;try{BeginInvoke((Action)delegate{CancelPlayful();StopPicking();swimming=false;guidedSwim=false;Location=Motion.Clamp(Location,Size,Screen.FromRectangle(Bounds).WorkingArea);Schedule();SchedulePlayful();});}catch(InvalidOperationException){} }
+        void DisplayChanged(object sender,EventArgs e){if(IsDisposed)return;try{BeginInvoke((Action)delegate{StopManualSwimming();CancelPlayful();StopPicking();swimming=false;guidedSwim=false;Location=Motion.Clamp(Location,Size,Screen.FromRectangle(Bounds).WorkingArea);Schedule();SchedulePlayful();});}catch(InvalidOperationException){} }
         void Save(){if(simulation)return;prefs.X=Left;prefs.Y=Top;prefs.Save();}
         void OpenSettings(){
             CloseReleaseWelcome();
@@ -504,9 +511,9 @@ namespace MochiDesktop {
             try{using(SettingsDialog d=new SettingsDialog(prefs,GetPlayfulStatus,delegate{return wallpaper==null?"Quiet Cove is off.":wallpaper.GetStatus();})){if(d.ShowDialog()==DialogResult.OK){Size=Renderer.WindowSize(prefs.Size);Location=Motion.Clamp(Location,Size,Screen.FromRectangle(Bounds).WorkingArea);tryPlayful=d.TryPlayfulRequested;if(wallpaper!=null)wallpaper.SetEnabled(prefs.StaticWallpaper);Save();}}}
             finally{modal=false;Schedule();PauseAutomaticActivities();ApplyPlayfulSettings(wasEnabled,tryPlayful);edgeWatch.Reset(Now);}
         }
-        void Help(){swimming=false;modal=true;try{MessageBox.Show("Click Mochi for a random petting, play, or snack animation.\nDrag Mochi to move to another spot or monitor.\nMove your pointer nearby and Mochi will look toward it.\n\nRight-click Mochi or the tray icon to choose petting, feeding, play, swimming, settings, or Quit.\nClick the tray icon to open the controls.\nChoose Come here, then click a spot for Mochi to swim to.\nPress Escape or right-click to cancel choosing a spot.\n\nEvery 1-3 minutes, Mochi takes turns snacking, enjoying a pat, and playing (Idle Activities). Playful Mode has its own clock. Due animations wait their turn, with a 3-second pause between them.\n\nMochi occasionally swims within the current screen.\nSettings lets you pause swimming or change its frequency, size, and Windows startup.\nQuiet Cove is an optional static ocean wallpaper, off by default. Turn it on in Settings and choose Save. Turning it off or quitting Mochi reveals your usual wallpaper.\n\nEnable Playful Mode in Settings for a little mischief: every 3-5 minutes, Mochi borrows a desktop icon and swims it to a new spot. Files stay in place. Turn off Auto arrange icons on your desktop to allow this.\n\nMochi runs locally. Only update checks and downloads use the internet. No account or microphone is needed.","Hello, I'm Mochi",MessageBoxButtons.OK,MessageBoxIcon.Information);}finally{modal=false;Schedule();PauseAutomaticActivities();}}
+        void Help(){swimming=false;modal=true;try{MessageBox.Show("Click Mochi for a random petting, play, or snack animation.\nDrag Mochi to move to another spot or monitor.\nMove your pointer nearby and Mochi will look toward it.\n\nRight-click Mochi or the tray icon to choose petting, feeding, play, swimming, settings, or Quit.\nClick the tray icon to open the controls.\nChoose Come here, then click a spot for Mochi to swim to.\nPress Escape or right-click to cancel choosing a spot.\nChoose Manual mode to steer with WASD or arrow keys. Hold two directions for diagonal swimming.\nEscape, right-click, or switching apps ends Manual mode.\n\nEvery 1-3 minutes, Mochi takes turns snacking, enjoying a pat, and playing (Idle Activities). Playful Mode has its own clock. Due animations wait their turn, with a 3-second pause between them.\n\nMochi occasionally swims within the current screen.\nSettings lets you pause swimming or change its frequency, size, and Windows startup.\nQuiet Cove is an optional static ocean wallpaper, off by default. Turn it on in Settings and choose Save. Turning it off or quitting Mochi reveals your usual wallpaper.\n\nEnable Playful Mode in Settings for a little mischief: every 3-5 minutes, Mochi borrows a desktop icon and swims it to a new spot. Files stay in place. Turn off Auto arrange icons on your desktop to allow this.\n\nMochi runs locally. Only update checks and downloads use the internet. No account or microphone is needed.","Hello, I'm Mochi",MessageBoxButtons.OK,MessageBoxIcon.Information);}finally{modal=false;Schedule();PauseAutomaticActivities();}}
         protected override void WndProc(ref Message m){
-            if(m.Msg==0x46 && m.LParam!=IntPtr.Zero){ // WM_WINDOWPOSCHANGING
+            if(m.Msg==0x46 && m.LParam!=IntPtr.Zero && manualSwim==null){ // WM_WINDOWPOSCHANGING
                 Native.WindowPosition position=(Native.WindowPosition)Marshal.PtrToStructure(m.LParam,typeof(Native.WindowPosition));
                 if((position.flags&0x4)==0){ // A z-order change must keep the companion behind normal apps.
                     position.insertAfter=Native.BackgroundAnchor(Handle,Native.DesktopSurface());
@@ -514,15 +521,16 @@ namespace MochiDesktop {
                 }
             }
             if(m.Msg==0x21){m.Result=new IntPtr(3);return;} // MA_NOACTIVATE: petting never steals typing focus.
+            if(m.Msg==0x84 && manualSwim!=null){m.Result=new IntPtr(-1);return;} // Steering overlay owns clicks until exit.
             if(m.Msg==0x84 && canvas!=null && !down){
                 long lp=m.LParam.ToInt64();Point p=PointToClient(new Point((short)(lp&0xffff),(short)((lp>>16)&0xffff)));
                 if(p.X<0||p.Y<0||p.X>=canvas.Width||p.Y>=canvas.Height||canvas.GetPixel(p.X,p.Y).A<20){m.Result=new IntPtr(-1);return;}
             }
             base.WndProc(ref m);
         }
-        protected override void OnFormClosing(FormClosingEventArgs e){closing=true;if(wallpaper!=null){wallpaper.Dispose();wallpaper=null;}CloseReleaseWelcome();CancelPlayful();StopUpdateChecks();StopPicking();timer.Stop();Save();base.OnFormClosing(e);}
+        protected override void OnFormClosing(FormClosingEventArgs e){closing=true;StopManualSwimming();if(wallpaper!=null){wallpaper.Dispose();wallpaper=null;}CloseReleaseWelcome();CancelPlayful();StopUpdateChecks();StopPicking();timer.Stop();Save();base.OnFormClosing(e);}
         protected override void Dispose(bool disposing){
-            if(disposing && !resourcesDisposed){resourcesDisposed=true;if(wallpaper!=null){wallpaper.Dispose();wallpaper=null;}CloseReleaseWelcome();CancelPlayful();StopUpdateChecks();StopPicking();Microsoft.Win32.SystemEvents.DisplaySettingsChanged-=DisplayChanged;
+            if(disposing && !resourcesDisposed){resourcesDisposed=true;StopManualSwimming();if(wallpaper!=null){wallpaper.Dispose();wallpaper=null;}CloseReleaseWelcome();CancelPlayful();StopUpdateChecks();StopPicking();Microsoft.Win32.SystemEvents.DisplaySettingsChanged-=DisplayChanged;
                 timer.Dispose();if(tray!=null){tray.Visible=false;tray.Dispose();}if(trayIcon!=null)trayIcon.Dispose();if(menu!=null)menu.Dispose();if(canvas!=null)canvas.Dispose();atlas.Dispose();}
             base.Dispose(disposing);
         }
@@ -830,6 +838,7 @@ namespace MochiDesktop {
         [StructLayout(LayoutKind.Sequential,Pack=1)] public struct Blend {public byte op,flags,alpha,format;}
         [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
         [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
+        [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
         [DllImport("user32.dll")] public static extern bool DestroyIcon(IntPtr icon);
         [DllImport("user32.dll",SetLastError=true)] static extern bool SetWindowPos(IntPtr window,IntPtr insertAfter,int x,int y,int width,int height,uint flags);
         delegate bool EnumWindowCallback(IntPtr window,IntPtr parameter);
@@ -864,6 +873,11 @@ namespace MochiDesktop {
             if(!SetWindowPos(window,BackgroundAnchor(window,desktop),0,0,0,0,0x13)) // No move, resize, or activation.
                 throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
         }
+        public static void RaiseForManualSwimming(IntPtr window){
+            // Show the nonactivating pet above its keyboard overlay, retaining keyboard focus there.
+            if(!SetWindowPos(window,new IntPtr(-1),0,0,0,0,0x13))
+                throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+        }
         [DllImport("user32.dll")] static extern IntPtr GetDC(IntPtr h);
         [DllImport("user32.dll")] static extern int ReleaseDC(IntPtr h,IntPtr dc);
         [DllImport("gdi32.dll")] static extern IntPtr CreateCompatibleDC(IntPtr dc);
@@ -883,6 +897,8 @@ namespace MochiDesktop {
         static void Check(bool ok,string message){if(!ok)throw new Exception(message);}
         public static int Run(string path){
             try{
+                if(ManualSwimTests.Run(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(path)),"manual-test-results.txt"))!=0)
+                    throw new Exception("Manual mode tests failed; see manual-test-results.txt.");
                 if(StaticWallpaperTests.Run(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(path)),"wallpaper-test-results.txt"))!=0)
                     throw new Exception("Static wallpaper tests failed; see wallpaper-test-results.txt");
                 if(ReleaseNotesTests.Run(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(path)),"release-notes-test-results.txt"))!=0)

@@ -88,7 +88,15 @@ Choose **Swim now** for a spontaneous trip, or use **Come here** to pick the des
 
 Press **Escape** or **right-click** to cancel picking a spot. Switching to another app cancels it too. Mochi stays behind your app windows while swimming, so leave his destination visible if you want to watch him arrive.
 
-Need him to stay nearby? Toggle **Pause swimming** in his menu. You can still feed, pet, and play with him, and **Come here** still works. His occasional idle activities continue too.
+**Your turn at the helm!** Choose **Manual mode** from the same right-click menu. A little “You're the captain!” card appears:
+
+- Hold **WASD** or the **arrow keys** to swim up, left, down or right. Combine two directions to swim diagonally.
+- Release the keys to gently stop. Mochi stays within his current screen, clear of the taskbar.
+- Press **Esc**, **right-click**, or switch to another app to finish. Keyboard controls only apply while Manual mode is open.
+
+During Manual mode, Mochi swims above your open windows so you can see him. When you finish, he returns to his usual place behind apps. Idle Activities and Playful Mode wait their turn, preserving pending timers and leaving a three-second pause before resuming. To explore another monitor, drag Mochi there first, then choose Manual mode again.
+
+Need him to stay nearby? Toggle **Pause swimming** in his menu. You can still feed, pet, and play with him, and both **Come here** and **Manual mode** still work. His occasional idle activities continue too.
 
 ## 4. Make him feel at home
 

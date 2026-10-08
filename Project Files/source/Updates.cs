@@ -496,7 +496,7 @@ namespace MochiDesktop {
             worker.RunWorkerAsync();
         }
         void PumpUpdateNotice() {
-            if (pendingUpdateNotice == null || closing || modal || releaseWelcome != null || menu.Visible || down || choosingDestination || playful != null ||
+            if (pendingUpdateNotice == null || closing || modal || releaseWelcome != null || menu.Visible || down || choosingDestination || manualSwim != null || playful != null ||
                 (!manualUpdateCheck && Now < 8)) return;
             Action notice = pendingUpdateNotice; pendingUpdateNotice = null; notice();
         }

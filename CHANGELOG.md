@@ -2,6 +2,16 @@
 
 Small updates for your little ocean. These notes are also available offline in Settings → What's New.
 
+## 1.2.9 - You're the captain!
+
+### A swim at your fingertips
+- Choose Manual mode in Mochi's right-click menu and steer with WASD or the arrow keys, including diagonal swims.
+- A familiar instruction card guides you. Press Escape, right-click, or switch apps to finish.
+
+### Room for every little adventure
+- Smooth starts, stops and turns keep Mochi inside the current screen, even with automatic swimming paused.
+- Idle Activities and Playful Mode wait while you steer. Pending turns keep their deadlines and resume with a three-second pause.
+
 ## 1.2.8 - Smoother shores in Quiet Cove (preview)
 
 ### A little reef repair

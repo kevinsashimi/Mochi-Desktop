@@ -1,0 +1,15 @@
+Mochi 1.2.9.0 — Manual mode verification
+
+Executable bytes: 20623872
+Executable SHA-256: c3611c06daf7a420805f19dda11bc2d2401e6b99347e9d6d62d19b4d546d21aa
+
+Built with Microsoft Roslyn against .NET Framework 4.8 reference assemblies.
+Windows manifest, icon and version resources verified.
+
+PASS: all 33 self-test groups (10 companion, 7 updater, 5 Playful Mode, 3 release notes, 5 static wallpaper, 3 Manual mode).
+PASS: native keyboard/mouse UI under Wine: menu selection, focused instruction overlay, WASD/arrow diagonal steering, release braking, protected app typing, Escape, right-click, focus transfer, repeat entry and quitting cleanup.
+PASS: guide and embedded release notes updated for 1.2.9.
+
+The desktop UI check confirms the native window order and visible rendering;
+Wine's compositor may tint layered windows slightly differently from Windows.
+Actual Windows desktop scaling and multi-monitor arrangements remain user QA.

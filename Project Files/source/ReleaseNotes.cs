@@ -146,7 +146,7 @@ namespace MochiDesktop {
             if(!releaseWelcomePending && !Version.TryParse(prefs.LastReleaseNotesVersion,out seen))RememberReleaseNotes();
         }
         void RememberReleaseNotes(){prefs.LastReleaseNotesVersion=AppVersion.Current.ToString();Save();}
-        bool CanShowReleaseWelcome(){return releaseWelcomePending && Now>=releaseWelcomeAt && releaseWelcome==null && !closing && !modal && !menu.Visible && !down && !choosingDestination && !swimming && feeding==null && reaction==null && playful==null;}
+        bool CanShowReleaseWelcome(){return releaseWelcomePending && Now>=releaseWelcomeAt && releaseWelcome==null && !closing && !modal && !menu.Visible && !down && !choosingDestination && manualSwim==null && !swimming && feeding==null && reaction==null && playful==null;}
         void PumpReleaseWelcome(){
             if(!CanShowReleaseWelcome())return;
             ReleaseWelcome card=new ReleaseWelcome(ReleaseCatalog.Current,atlas.Frames[0,0],ShowReleaseNotes);

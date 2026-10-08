@@ -82,7 +82,7 @@ namespace MochiDesktop {
                 }
             }
         }
-        public static Bitmap DrawOverlay(Size size,Atlas atlas,bool right){
+        public static Bitmap DrawOverlay(Size size,Atlas atlas,bool right,string heading="Where should I swim?",string instructions="Click a spot and I'll swim over!",string exitHint="Esc or right-click to cancel"){
             Bitmap page=new Bitmap(size.Width,size.Height,PixelFormat.Format32bppArgb);
             using(Graphics g=Graphics.FromImage(page)){
                 // A nonzero alpha across the screen receives the click without passing it to an app.
@@ -98,9 +98,9 @@ namespace MochiDesktop {
                 using(Font text=new Font("Segoe UI",15,FontStyle.Regular,GraphicsUnit.Pixel))
                 using(Font hint=new Font("Segoe UI",13,FontStyle.Regular,GraphicsUnit.Pixel))
                 using(Brush ink=new SolidBrush(Color.FromArgb(29,64,83)))using(Brush quiet=new SolidBrush(Color.FromArgb(78,111,128))){
-                    g.DrawString("Where should I swim?",title,ink,new RectangleF(x+111,y+16,width-125,29));
-                    g.DrawString("Click a spot and I'll swim over!",text,ink,new RectangleF(x+111,y+49,width-125,26));
-                    g.DrawString("Esc or right-click to cancel",hint,quiet,new RectangleF(x+111,y+81,width-125,24));
+                    g.DrawString(heading,title,ink,new RectangleF(x+111,y+16,width-125,29));
+                    g.DrawString(instructions,text,ink,new RectangleF(x+111,y+49,width-125,26));
+                    g.DrawString(exitHint,hint,quiet,new RectangleF(x+111,y+81,width-125,24));
                 }
             }
             return page;
@@ -153,6 +153,7 @@ namespace MochiDesktop {
             BeginDestinationSwim(target,routeArea);
         }
         void BeginDestinationSwim(Point target,Rectangle routeArea){
+            StopManualSwimming();
             CancelPlayful();
             CancelRegularAnimation();
             StopPicking();startupHintAt=-1;gaze.Reset();feeding=null;reaction=null;down=false;dragging=false;
