@@ -225,7 +225,7 @@ namespace MochiDesktop {
             swimGaze.Reset();swimFraction=PointF.Empty;row=frame=0;actionStart=Now;actionUntil=0;bubble="";bubbleUntil=0;
             edgeWatch.Reset(Now);Schedule();PauseAutomaticActivities();
             Location=Motion.Clamp(Location,Size,Screen.FromRectangle(Bounds).WorkingArea);
-            if(!simulation && IsHandleCreated && !IsDisposed){TopMost=false;Native.KeepBehindApps(Handle);Render();}
+            if(!simulation && IsHandleCreated && !IsDisposed){TopMost=false;KeepBehindApps();Render();}
             // Closing a WinForms tool window can activate its previous sibling.
             // Preserve the app the user already switched to, if that happened here.
             if(preserveFocus && Native.GetForegroundWindow()==Handle)Native.SetForegroundWindow(foreground);

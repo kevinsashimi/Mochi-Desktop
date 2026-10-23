@@ -34,6 +34,7 @@ namespace MochiDesktop {
                 if (args.Length == 2 && args[0] == "--wallpaper-self-test") return StaticWallpaperTests.Run(args[1]);
                 if (args.Length == 2 && args[0] == "--manual-self-test") return ManualSwimTests.Run(args[1]);
                 if (args.Length == 2 && args[0] == "--release-notes-self-test") return ReleaseNotesTests.Run(args[1]);
+                if (args.Length == 2 && args[0] == "--placement-self-test") return BackgroundPlacementTests.Run(args[1]);
                 if (args.Length == 2 && args[0] == "--playful-preview") { PlayfulPreview.Write(args[1]); return 0; }
                 if (args.Length == 2 && args[0] == "--desktop-icons-status") {
                     using (IDesktopIcons icons = new WindowsDesktopIcons()) {
@@ -270,6 +271,7 @@ namespace MochiDesktop {
         readonly GazeMotion swimGaze=new GazeMotion();readonly EdgeWatch edgeWatch=new EdgeWatch();
         SwimPath swimPath;PointF swimFraction;
         double simulatedTime,nextBackgroundCheck; bool resourcesDisposed;
+        Action<IntPtr> backgroundPlacement=Native.KeepBehindApps;
         readonly Stopwatch clock=Stopwatch.StartNew(); readonly System.Windows.Forms.Timer timer=new System.Windows.Forms.Timer();
         NotifyIcon tray; ContextMenuStrip menu; ToolStripMenuItem pauseItem; Icon trayIcon; Bitmap canvas;
         int row,frame; double actionStart,actionUntil,nextSwim,bubbleUntil,travelStart,travelDuration;
@@ -296,11 +298,26 @@ namespace MochiDesktop {
             tray=new NotifyIcon{Icon=trayIcon,Text="Mochi - right-click for controls",Visible=true,ContextMenuStrip=menu};
             tray.MouseClick+=delegate(object sender,MouseEventArgs e){if(e.Button==MouseButtons.Left)menu.Show(Cursor.Position);};
             timer.Interval=15; timer.Tick+=delegate{Tick();};
-            Shown+=delegate{wallpaper=new StaticWallpaper();wallpaper.SetEnabled(prefs.StaticWallpaper);Native.KeepBehindApps(Handle);StartWelcome();PrepareReleaseWelcome();timer.Start();Render();StartUpdateCheck(false);};
+            Shown+=CompanionShown;
             SetStyle(ControlStyles.StandardDoubleClick,false);
             MouseDown+=OnDown;MouseMove+=OnMove;MouseUp+=OnUp;
             MouseCaptureChanged+=delegate{if(!Capture && down){down=false;dragging=false;Schedule();PauseAutomaticActivities();}};
             Microsoft.Win32.SystemEvents.DisplaySettingsChanged+=DisplayChanged;
+        }
+        void CompanionShown(object sender,EventArgs e){
+            wallpaper=new StaticWallpaper();wallpaper.SetEnabled(prefs.StaticWallpaper);
+            KeepBehindApps();StartWelcome();PrepareReleaseWelcome();timer.Start();Render();StartUpdateCheck(false);
+        }
+        void KeepBehindApps(){
+            if(closing || resourcesDisposed || IsDisposed || Disposing || !IsHandleCreated || manualSwim!=null)return;
+            // Explorer's z-order can change between finding an anchor and placing Mochi.
+            // Schedule before attempting so even a failed call retries at most once a second.
+            nextBackgroundCheck=Now+1;
+            try{backgroundPlacement(Handle);}
+            catch(System.ComponentModel.Win32Exception){
+                // Placement is best effort. Keep startup/animation alive and let the timer
+                // retry with a fresh desktop anchor, without an unhandled-exception dialog.
+            }
         }
         void BuildMenu(){
             menu=new ContextMenuStrip{Font=new Font("Segoe UI",10),ShowImageMargin=false};
@@ -449,7 +466,7 @@ namespace MochiDesktop {
             if(closing)return;
             if(Program.SettingsRequest!=null && Program.SettingsRequest.WaitOne(0) && !modal){OpenSettings();return;}
             PumpReleaseWelcome();
-            if(manualSwim==null && Now>=nextBackgroundCheck){Native.KeepBehindApps(Handle);nextBackgroundCheck=Now+1;}
+            if(manualSwim==null && Now>=nextBackgroundCheck)KeepBehindApps();
             Advance(Now,Cursor.Position);
         }
         void Advance(double now,Point cursor){
@@ -917,6 +934,8 @@ namespace MochiDesktop {
         static void Check(bool ok,string message){if(!ok)throw new Exception(message);}
         public static int Run(string path){
             try{
+                if(BackgroundPlacementTests.Run(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(path)),"placement-test-results.txt"))!=0)
+                    throw new Exception("Background placement tests failed; see placement-test-results.txt.");
                 if(ManualSwimTests.Run(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(path)),"manual-test-results.txt"))!=0)
                     throw new Exception("Manual mode tests failed; see manual-test-results.txt.");
                 if(StaticWallpaperTests.Run(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(path)),"wallpaper-test-results.txt"))!=0)

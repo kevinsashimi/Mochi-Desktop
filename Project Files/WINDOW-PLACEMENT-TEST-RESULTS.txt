@@ -1,0 +1,8 @@
+Mochi Desktop 1.2.12.0 - Window-placement regression tests
+Validated 23 October 2026 under Wine 10 / Wine Mono 9.4.
+
+PASS: startup access-denied failure does not interrupt the welcome, rendering or timer; periodic invalid-window failure retries and recovers.
+PASS: one-second retry cadence after success and failure; sustained failures and long timer gaps do not cause a busy loop; manual mode suspends background placement.
+PASS: missing, closing and disposed handles are skipped; unrelated exceptions remain visible; real native placement failure is contained; successful native placement preserves bounds, non-topmost behavior and focus.
+
+Full release self-test: 41 passing groups; see WINDOW-PLACEMENT-QA.md for scope and Wine limitations.

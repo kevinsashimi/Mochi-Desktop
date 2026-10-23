@@ -2,6 +2,12 @@
 
 Small updates for your little ocean. These notes are also available offline in Settings → What's New.
 
+## 1.2.12 - A smoother start for Mochi
+
+### A little patience at startup
+- Mochi keeps starting normally if Windows temporarily refuses to place him behind other apps, without showing an unhandled-exception dialog.
+- Background placement retries quietly after one second, including after leaving Manual mode, while keeping the usual behind-other-windows behavior.
+
 ## 1.2.11 - A softer sun over Quiet Cove
 
 ### A little golden calm
