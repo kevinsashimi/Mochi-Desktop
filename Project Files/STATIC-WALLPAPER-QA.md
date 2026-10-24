@@ -20,4 +20,4 @@ For 1.2.11, check that there is only one larger, softly glowing sunlight opening
 8. Reconnect a monitor, change resolution/DPI, restart Explorer and lock/unlock Windows. Mochi should attach to the new desktop within a few seconds (up to 30 seconds after a failed attempt). Existing icons and their positions must stay unchanged.
 9. Confirm Mochi still performs Idle Activities, follows the pointer, swims and uses Playful Mode normally. Check Settings and the centred update welcome at 100% and 200% scaling.
 
-If it remains hidden, open Settings → Wallpaper status and keep the generated wallpaper-status.txt. Cloud tests use Wine and controlled native desktop fixtures; they do not certify behavior on real Windows Explorer or alongside another wallpaper app.
+If it remains hidden, open Settings → Wallpaper status and keep `%LOCALAPPDATA%\Mochi\wallpaper-status.txt`. Cloud tests use Wine and controlled native desktop fixtures; they do not certify behavior on real Windows Explorer or alongside another wallpaper app.

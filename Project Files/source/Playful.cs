@@ -72,7 +72,7 @@ namespace MochiDesktop {
         readonly IDesktopIcons desktop;
         Point lastActual;
         double nextMove, nextValidation;
-        bool touched, disposed;
+        bool touched, disposed, dropChecked;
         public PlayfulTrip(PlayfulPlan plan, IDesktopIcons icons, Bitmap picture, double now, string[] lines, int giggle) {
             Plan = plan; desktop = icons; Icon = picture; Lines = lines; Giggle = giggle;
             Stage = MischiefStage.Approach; Started = now; Position = plan.Approach.Start;
@@ -81,7 +81,7 @@ namespace MochiDesktop {
         public string Speech {
             get { return Stage == MischiefStage.Approach || Stage == MischiefStage.Pickup ? Lines[0] : Stage == MischiefStage.Carry ? Lines[1] : Stage == MischiefStage.Drop ? Lines[2] : Lines[3]; }
         }
-        void Enter(MischiefStage stage, double now) { Stage = stage; Started = now; nextMove = 0; }
+        void Enter(MischiefStage stage, double now) { Stage = stage; Started = now; nextMove = 0;if(stage==MischiefStage.Drop)dropChecked=false; }
         bool Stop(string reason) { StopReason = reason; return false; }
         bool Move(Point destination, double now, bool final) {
             IconPosition = destination;
@@ -95,10 +95,10 @@ namespace MochiDesktop {
             return Plan.Area.Contains(new Rectangle(actual, Plan.Item.Cell)) || Stop("Windows placed the icon outside the planned screen area.");
         }
         bool StillOurs() {
-            DesktopLayout current = desktop.Read();
-            DesktopItem item = current.Find(Plan.Item.Id);
-            if (current.Status != DesktopIconStatus.Available) return Stop(DesktopDescription(current));
-            return item != null && item.Position == lastActual && item.Cell == Plan.Item.Cell || Stop("The selected icon was moved, removed, or resized during the trip.");
+            DesktopItem item;
+            if(!desktop.TryGet(Plan.Item.Id,out item))return Stop(String.IsNullOrEmpty(desktop.Problem)?
+                "The selected icon is no longer available.":desktop.Problem);
+            return item.Position == lastActual && item.Cell == Plan.Item.Cell || Stop("The selected icon was moved, removed, or resized during the trip.");
         }
         internal static string DesktopDescription(DesktopLayout layout) {
             if (!String.IsNullOrEmpty(layout.Detail)) return layout.Detail;
@@ -124,9 +124,13 @@ namespace MochiDesktop {
                 if (!Move(new Point(Position.X + Plan.HoldOffset.X, Position.Y + Plan.HoldOffset.Y), now, elapsed >= Plan.CarryDuration)) return false;
                 if (elapsed >= Plan.CarryDuration) { Position = Plan.Carry.End; Enter(MischiefStage.Drop, now); }
             } else if (Stage == MischiefStage.Drop) {
-                DesktopLayout current = desktop.Read();
-                if (current.Status != DesktopIconStatus.Available) return Stop(DesktopDescription(current));
-                if (!current.Free(Plan.Item.Id, Plan.DropPoint, Plan.Item.Cell, Plan.Area)) return Stop("The planned drop spot is now occupied.");
+                DesktopLayout current=null;
+                if(!dropChecked){
+                    current = desktop.Read();
+                    if (current.Status != DesktopIconStatus.Available) return Stop(DesktopDescription(current));
+                    if (!current.Free(Plan.Item.Id, Plan.DropPoint, Plan.Item.Cell, Plan.Area)) return Stop("The planned drop spot is now occupied.");
+                    dropChecked=true;
+                }
                 Point hold = new Point(Position.X + Plan.HoldOffset.X, Position.Y + Plan.HoldOffset.Y);
                 if (!Move(Motion.Travel(hold, Plan.DropPoint, elapsed / .65), now, elapsed >= .65)) return false;
                 if (elapsed >= .65) {
@@ -144,9 +148,10 @@ namespace MochiDesktop {
             try {
                 if (touched && !Committed) {
                     DesktopLayout current = desktop.Read();
-                    DesktopItem item = current.Find(Plan.Item.Id);
+                    DesktopItem item;
+                    bool ours=desktop.TryGet(Plan.Item.Id,out item);
                     // Restore only our own unfinished move, and never overwrite a user's new arrangement.
-                    if (current.Status == DesktopIconStatus.Available && item != null && item.Position == lastActual && item.Cell == Plan.Item.Cell &&
+                    if (current.Status == DesktopIconStatus.Available && ours && item.Position == lastActual && item.Cell == Plan.Item.Cell &&
                         current.Free(Plan.Item.Id, Plan.Item.Position, Plan.Item.Cell, Plan.Area)) {
                         Point ignored; desktop.TryMove(Plan.Item.Id, lastActual, Plan.Item.Position, out ignored);
                     }
@@ -222,7 +227,7 @@ namespace MochiDesktop {
         bool playfulRequested;
         PlayfulTrip playful;
         // A fake implementation is injected by timer tests; production always uses Explorer.
-        Func<IDesktopIcons> desktopFactory = delegate { return new WindowsDesktopIcons(); };
+        Func<IDesktopIcons> desktopFactory = delegate { return new BoundedDesktopIcons(); };
 
         void SchedulePlayful() { nextPlayful = prefs.PlayfulMode ? Now + random.Next(180, 301) : Double.PositiveInfinity; }
         void ApplyPlayfulSettings(bool wasEnabled, bool tryNow) {
@@ -236,7 +241,7 @@ namespace MochiDesktop {
         }
         void WritePlayfulStatus(string message) {
             if (simulation) return;
-            try { File.WriteAllText(Path.Combine(Program.DataDirectory, "playful-status.txt"),
+            try { File.WriteAllText(Path.Combine(Program.DiagnosticsDirectory, "playful-status.txt"),
                 "Mochi " + typeof(Companion).Assembly.GetName().Version + "\r\n" + DateTimeOffset.Now.ToString("o") + "\r\n" + message + "\r\n"); }
             catch (IOException) { } catch (UnauthorizedAccessException) { }
         }
@@ -293,14 +298,18 @@ namespace MochiDesktop {
                 List<DesktopItem> choices = layout.Items.FindAll(delegate(DesktopItem item) { return area.Contains(new Rectangle(item.Position, item.Cell)); });
                 if (choices.Count == 0) return CannotStartPlayful(layout.Items.Count == 0 ? "No readable desktop icons were found." :
                     "There are no fully visible icons on Mochi's monitor. Move Mochi to a monitor with desktop icons.", requested);
-                int start = random.Next(choices.Count);
+                int start = random.Next(choices.Count),candidateCount=Math.Min(64,choices.Count);
                 bool pictureFailed = false; string pictureProblem = "";
-                for (int n = 0; n < choices.Count * 2; n++) {
-                    DesktopItem item = choices[(start + n) % choices.Count];
+                // Route construction is deliberately capped. A crowded desktop can
+                // contain thousands of icons, and trying 80 routes for every item on
+                // the UI thread would otherwise make the companion unresponsive.
+                for (int n = 0; n < candidateCount+(String.IsNullOrEmpty(lastPlayfulItem)?0:1); n++) {
+                    bool retryLast=n==candidateCount;
+                    DesktopItem item=retryLast?choices.Find(delegate(DesktopItem candidate){return String.Equals(candidate.Id,lastPlayfulItem,StringComparison.OrdinalIgnoreCase);}):choices[(start+n)%choices.Count];
+                    if(item==null)continue;
                     // Prefer a different icon, but allow the previous one if it is
                     // the only item with a usable route or picture.
-                    if (n < choices.Count && choices.Count > 1 && item.Id == lastPlayfulItem) continue;
-                    if (n >= choices.Count && item.Id != lastPlayfulItem) continue;
+                    if (!retryLast && choices.Count > 1 && item.Id == lastPlayfulItem) continue;
                     MischiefKind kind = (MischiefKind)random.Next(2);
                     PlayfulPlan plan = PlayfulPlan.Create(layout, item, Location, prefs.Size, area, random, kind);
                     if (plan == null) continue;

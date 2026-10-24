@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Windows.Forms;
 using System.Xml.Linq;
 
@@ -113,7 +115,7 @@ namespace MochiDesktop {
     // These fixtures change in-memory coordinates only, including when run on a real desktop.
     sealed class PlayfulDesktopFixture {
         public readonly DesktopLayout Layout = new DesktopLayout { Status = DesktopIconStatus.Available };
-        public int Moves, Disposals, Reads;
+        public int Moves, Disposals, Reads, Lookups;
         public bool DenyMoves, Snap;
         public readonly HashSet<string> MissingPictures = new HashSet<string>();
         public readonly List<Point> Positions = new List<Point>();
@@ -140,6 +142,13 @@ namespace MochiDesktop {
                 DesktopLayout copy = new DesktopLayout { Status = disposed ? DesktopIconStatus.Unavailable : state.Layout.Status, Detail = state.Layout.Detail };
                 foreach (DesktopItem item in state.Layout.Items) copy.Items.Add(new DesktopItem { Id = item.Id, Position = item.Position, Cell = item.Cell });
                 return copy;
+            }
+            public bool TryGet(string id,out DesktopItem found) {
+                state.Lookups++;found=null;
+                if(disposed || state.Layout.Status!=DesktopIconStatus.Available)return false;
+                DesktopItem item=state.Layout.Find(id);
+                if(item==null)return false;
+                found=new DesktopItem{Id=item.Id,Position=item.Position,Cell=item.Cell};return true;
             }
             public Bitmap Picture(string id) { return state.Layout.Find(id) == null || state.MissingPictures.Contains(id) ? null : PlayfulDesktopFixture.Picture(); }
             public bool TryMove(string id, Point expected, Point destination, out Point actual) {
@@ -246,6 +255,7 @@ namespace MochiDesktop {
                 using (PlayfulTrip trip = Trip(desktop, kind, right)) {
                     double now = Until(trip, MischiefStage.Giggle);
                     Check(trip.Committed && desktop.Layout.Items[0].Position == trip.Plan.DropPoint && desktop.Layout.Items[0].Position != before, "drop did not commit the original item");
+                    Check(desktop.Lookups>10 && desktop.Reads<=4,"periodic ownership checks rescanned the entire desktop");
                     Check(desktop.Moves > 20 && desktop.Layout.Items[1].Position == new Point(20, 20), "carry did not animate or touched a different icon");
                     Check(!trip.Advance(now + 3), "giggle never finishes");
                     foreach (Point point in desktop.Positions) Check(trip.Plan.Area.Contains(new Rectangle(point, trip.Plan.Item.Cell)), "temporary icon position outside screen");
@@ -305,14 +315,31 @@ namespace MochiDesktop {
                 }
             }
         }
+        sealed class SlowDesktop:IDesktopIcons {
+            public string Problem{get{return "";}}
+            public DesktopLayout Read(){Thread.Sleep(1000);return new DesktopLayout{Status=DesktopIconStatus.Available};}
+            public bool TryGet(string id,out DesktopItem item){item=null;return false;}
+            public Bitmap Picture(string id){return null;}
+            public bool TryMove(string id,Point expected,Point destination,out Point actual){actual=expected;return false;}
+            public void Dispose(){}
+        }
+        static void BoundedExplorerCalls(){
+            Stopwatch elapsed=Stopwatch.StartNew();DesktopLayout layout;
+            using(IDesktopIcons desktop=new BoundedDesktopIcons(delegate{return new SlowDesktop();},75))layout=desktop.Read();
+            elapsed.Stop();Check(elapsed.ElapsedMilliseconds<500 && layout.Status==DesktopIconStatus.Unavailable &&
+                layout.Detail.Contains("did not respond"),"hung Explorer call was not bounded");
+            elapsed.Restart();using(IDesktopIcons desktop=new BoundedDesktopIcons(delegate{throw new Exception("circuit breaker failed");},75))layout=desktop.Read();
+            elapsed.Stop();Check(elapsed.ElapsedMilliseconds<100 && layout.Status==DesktopIconStatus.Unavailable,
+                "Explorer timeout circuit breaker did not persist");
+        }
         public static int Run(string path) {
             try {
                 string directory = Path.GetDirectoryName(Path.GetFullPath(path)); Directory.CreateDirectory(directory);
-                WindowsDesktopIcons.VerifyViewInterop(); Settings(directory); Routes(); OwnershipAndInterruptions(); Rendering(); Companion.VerifyPlayfulBehavior(); Companion.VerifyPlayfulScheduling(); Companion.VerifyActivityQueue();
+                WindowsDesktopIcons.VerifyViewInterop(); Settings(directory); Routes(); OwnershipAndInterruptions(); Rendering(); Companion.VerifyPlayfulBehavior(); Companion.VerifyPlayfulScheduling(); Companion.VerifyActivityQueue();BoundedExplorerCalls();
                 File.WriteAllText(path,
                     "PASS: settings-only opt-in toggle; Save/Cancel, persistence, old settings compatibility, status controls, and Save and try now.\r\n" +
                     "PASS: 1260 routes across sizes, edge icons, portrait and negative-coordinate monitors; all 16 directions, three path styles, varied distances, both facings, and on-screen cargo.\r\n" +
-                    "PASS: native COM desktop-view handoff without IOleWindow; exact interface failure stages and reference cleanup; actual controller pickup/carry/drop/giggle; stable icon identity; untouched neighbors; cancellation restoration; user moves, deletion, grid snapping, occupied destinations, changed icon size, and Explorer unavailability.\r\n" +
+                    "PASS: native COM desktop-view handoff without IOleWindow; bounded STA calls, timeout circuit breaker, snapshots and targeted periodic identity checks; exact interface failure stages and reference cleanup; actual controller pickup/carry/drop/giggle; stable icon identity; untouched neighbors; cancellation restoration; user moves, deletion, grid snapping, occupied destinations, changed icon size, and Explorer unavailability.\r\n" +
                     "PASS: both grab/bite variants in both directions at all three sizes; changing rendered pixels, transparent corners, and unclipped body.\r\n" +
                     "PASS: real companion timer deadlines, repeated trips, speech variants, menu exclusion, interaction priorities, disabled mode, pause independence, and bounded pending turns; independent idle/prank clocks, oldest-due-first ordering, three-second handoffs, two hours of mixed categories without starvation, manual overrides, mode changes, 30-second retries, blocked reasons, mouse scope, and last-icon fallback.\r\n");
                 return 0;

@@ -7,6 +7,7 @@ using System.IO;
 using System.Net;
 using System.Net.Cache;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
 using System.Security.Cryptography;
@@ -43,7 +44,6 @@ namespace MochiDesktop {
                 "\r\n" + cause.Message;
         }
         // Called for failures only. No report is uploaded or included in update requests.
-        // The helper receives the original app path so its report survives temporary-file cleanup.
         public static string Report(Exception error, string fallbackStage, string target = null, string[] reportFolders = null) {
             string stage = Stage(error, fallbackStage);
             string message = UpdateService.Explain(error) + "\r\n\r\nStep: " + stage + "\r\n" + Details(error);
@@ -53,10 +53,7 @@ namespace MochiDesktop {
                 "\r\nRuntime: " + Environment.Version + "; process: " + (IntPtr.Size * 8) + "-bit\r\n\r\n" + error;
             try {
                 if (reportFolders == null) {
-                    string folder = Path.GetDirectoryName(target ?? Application.ExecutablePath);
-                    string project = Path.Combine(folder, "Project Files");
-                    reportFolders = new[] { Directory.Exists(project) ? project : folder,
-                        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mochi") };
+                    reportFolders = new[] { Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mochi") };
                 }
                 foreach (string folder in reportFolders) {
                     try {
@@ -78,8 +75,16 @@ namespace MochiDesktop {
     }
 
     sealed class UpdateInfo {
+        const string PublicModulus = "xouWeDgE9/Lng9LSI/nnbajT+W7tWt0pt5K8rsyehyjkOzH6w8WNTiAkkkhVAjR6CL7DJdAxaAyucnMhp2ck8rsCuwydqpBE5JANY7rC/MHCgOE4yIxtEnn92yBp51ca7z1/GW/62MlhsUhjeQKtqnAf6Ote3pg2oCGPGsVHrjM9cVA96QA1/UkzmqrUmdHKwZBZAdAstm5tnwl+Sr4cZBR51vqa8uYXA/PbfPALa8ddj0KZrk1WxHrZPLwNf+abJOxU17p9QMfTx2D8raBmF5DmLOVXEea7yPuF4qDNUfi6reY+p+xrOs5dV0/pcSZOy8TcXCMnbEa+KDhm0cPHVTHzDTaob1i2+aod+QfYqziwxBL7CeqaW2Ceg2TR6L2CpQ3Z5ZrLm7HcFYhi+jd45UNgsyHU2vrSP+l1WDCVQEKhwmjgMZEdEskLW/eoJfiCONCTvQssm56pSMigb2KDBew4gSVxTh4fmwmkfhUJWS6YQck/tM50K0xLGXx7uzaO/5p3ZpA/P+u+aRbR7hg5JHoj1KZsCcWeRUyUawjfWbZMG8plrygXYLwP+1FmEtygsiGLRAt00N23Ju5kcwOVJqtu+OuwtM/3ciRi7MWw71qc9tJDA7orBl8LtLeyYXqkIjmKATof4wD3pcKp+TECRo56x92oBcejh63xJ2fo8Ns=";
+        const string PublicExponent = "AQAB";
+#if MOCHI_TESTS
+        // Test builds accept a separate fixture key. Release builds contain only the
+        // production public key above and can never accept fixture signatures.
+        const string TestModulus = "y9Vdm+trR3h+PFk7keNrfC5TVkTW3RHFM7E+IZGD1NAZMiKh5Bcpj28rCWyo2nrpnNFrECAT7JRShtk0CtEPrwH/QDO5cZdLDgNpD7++nr+Uf2o8d/husHubz4pU3oAacjs5799qNVwya432FzbttVvApvmXQ9kjkcCyTt4S4TBhw0S5yZNfa7xgQhQlwHiECAoZ559mngQIyXBoOkTfs47oD1uNy+Aew4JBcfGNPZW70vKNhiUvGbkwdsKKAX/gIPo+141z4XzV0qDm8LwhPoa5wBBrp1qY3f/7zTLhNiqkj3wlWNIx//wIAZuAj0urgipjMyi5e6La3I2ZH+BjmQ==";
+#endif
         public Version Version;
         public string Sha256;
+        public string Signature;
         public long Size;
         public string Commit;
         public const long MaximumSize = 50 * 1024 * 1024;
@@ -94,14 +99,45 @@ namespace MochiDesktop {
             Version version;
             long size;
             string hash = (string)xml.Element("Sha256");
+            string signatureText = (string)xml.Element("Signature");
             if (xml.Name != "MochiUpdate" || (string)xml.Element("File") != "Mochi.exe" ||
                 !System.Version.TryParse((string)xml.Element("Version"), out version) ||
                 version.Build < 0 || version.Major < 1 ||
                 !Int64.TryParse((string)xml.Element("Size"), NumberStyles.None, CultureInfo.InvariantCulture, out size) ||
-                size <= 0 || size > MaximumSize || !IsHash(hash, 64) || !IsHash(commit, 40))
+                size <= 0 || size > MaximumSize || !IsHash(hash, 64) || !IsHash(commit, 40) ||
+                String.IsNullOrEmpty(signatureText) || signatureText.Length > 2048)
                 throw new InvalidDataException("The update information from GitHub is invalid.");
             version = new Version(version.Major, version.Minor, version.Build, Math.Max(0, version.Revision));
-            return new UpdateInfo { Version = version, Sha256 = hash.ToLowerInvariant(), Size = size, Commit = commit };
+            hash = hash.ToLowerInvariant();
+            byte[] signature;
+            try { signature = Convert.FromBase64String(signatureText); }
+            catch (FormatException) { throw new InvalidDataException("The update signature is invalid."); }
+            byte[] payload = Canonical(version, hash, size);
+            if (!VerifySignature(payload, signature))
+                throw new InvalidDataException("The update signature is invalid. Mochi will not install an update whose publisher cannot be verified.");
+            return new UpdateInfo { Version = version, Sha256 = hash, Signature = Convert.ToBase64String(signature), Size = size, Commit = commit };
+        }
+        public static byte[] Canonical(Version version, string hash, long size) {
+            Version normalized = new Version(version.Major, version.Minor, version.Build, Math.Max(0, version.Revision));
+            return Encoding.UTF8.GetBytes("MochiUpdate\nVersion=" + normalized.ToString(4) + "\nFile=Mochi.exe\nSize=" +
+                size.ToString(CultureInfo.InvariantCulture) + "\nSha256=" + hash.ToLowerInvariant() + "\n");
+        }
+        static bool VerifyWithKey(byte[] payload, byte[] signature, string modulus) {
+            try {
+                using (RSACryptoServiceProvider rsa = new RSACryptoServiceProvider()) {
+                    rsa.PersistKeyInCsp = false;
+                    rsa.ImportParameters(new RSAParameters { Modulus = Convert.FromBase64String(modulus), Exponent = Convert.FromBase64String(PublicExponent) });
+                    return rsa.VerifyData(payload, CryptoConfig.MapNameToOID("SHA256"), signature);
+                }
+            } catch (CryptographicException) { return false; }
+        }
+        static bool VerifySignature(byte[] payload, byte[] signature) {
+            if (VerifyWithKey(payload, signature, PublicModulus)) return true;
+#if MOCHI_TESTS
+            return VerifyWithKey(payload, signature, TestModulus);
+#else
+            return false;
+#endif
         }
         public static bool IsHash(string value, int length) {
             return value != null && Regex.IsMatch(value, "\\A[0-9a-fA-F]{" + length + "}\\z");
@@ -266,7 +302,7 @@ namespace MochiDesktop {
         public void Save(string directory) {
             new XElement("MochiInstall", new XElement("Target", Target), new XElement("OldHash", OldHash),
                 new XElement("ParentId", ParentId), new XElement("ParentStarted", ParentStarted),
-                new XElement("Version", Update.Version), new XElement("Sha256", Update.Sha256),
+                new XElement("Version", Update.Version), new XElement("Sha256", Update.Sha256), new XElement("Signature", Update.Signature),
                 new XElement("Size", Update.Size)).Save(Path.Combine(directory, "install.xml"));
         }
         public static InstallRequest Load(string directory) {
@@ -274,7 +310,8 @@ namespace MochiDesktop {
             using (FileStream stream = File.OpenRead(Path.Combine(directory, "install.xml"))) xml = UpdateInfo.ReadXml(stream);
             UpdateInfo info = UpdateInfo.Parse(Encoding.UTF8.GetBytes(new XElement("MochiUpdate",
                 new XElement("File", "Mochi.exe"), new XElement("Version", (string)xml.Element("Version")),
-                new XElement("Size", (string)xml.Element("Size")), new XElement("Sha256", (string)xml.Element("Sha256"))).ToString()), new string('0', 40));
+                new XElement("Size", (string)xml.Element("Size")), new XElement("Sha256", (string)xml.Element("Sha256")),
+                new XElement("Signature", (string)xml.Element("Signature"))).ToString()), new string('0', 40));
             string target = (string)xml.Element("Target");
             if (String.IsNullOrEmpty(target) || !Path.IsPathRooted(target) ||
                 !String.Equals(Path.GetExtension(target), ".exe", StringComparison.OrdinalIgnoreCase) ||
@@ -286,6 +323,28 @@ namespace MochiDesktop {
     }
 
     static class UpdateInstaller {
+        [DllImport("kernel32.dll")] static extern IntPtr GetCurrentProcess();
+        [DllImport("kernel32.dll",SetLastError=true)] static extern bool CloseHandle(IntPtr handle);
+        [DllImport("advapi32.dll",SetLastError=true)] static extern bool OpenProcessToken(IntPtr process,uint access,out IntPtr token);
+        [DllImport("advapi32.dll",SetLastError=true)] static extern bool GetTokenInformation(IntPtr token,int informationClass,out int information,int length,out int returned);
+        internal static bool IsElevated() {
+#if MOCHI_TESTS
+            string forced = Environment.GetEnvironmentVariable("MOCHI_TEST_ELEVATION");
+            if (forced == "0") return false;
+            if (forced == "1") return true;
+#endif
+            IntPtr token;
+            if (!OpenProcessToken(GetCurrentProcess(),8,out token)) throw new Win32Exception(Marshal.GetLastWin32Error()); // TOKEN_QUERY
+            try {
+                int elevated,returned;
+                if (!GetTokenInformation(token,20,out elevated,sizeof(int),out returned)) // TokenElevation
+                    throw new Win32Exception(Marshal.GetLastWin32Error());
+                return elevated != 0;
+            } finally { CloseHandle(token); }
+        }
+        internal static void EnsureNotElevated() {
+            if (IsElevated()) throw new InvalidDataException("Mochi cannot safely update while it is running as administrator. Close it, reopen it normally, and check for updates again.");
+        }
         public static string Quote(string value) {
             if (value.IndexOf('"') >= 0) throw new ArgumentException("Invalid path.");
             return "\"" + value + "\"";
@@ -299,6 +358,7 @@ namespace MochiDesktop {
         }
         // The launch callback lets tests exercise the full preparation path without closing the test runner.
         internal static void PrepareAndStart(string directory, UpdateInfo update, string target, Action<ProcessStartInfo> launch) {
+            UpdateDiagnostics.At("Checking updater privileges", EnsureNotElevated);
             UpdateService.VerifyExecutable(Path.Combine(directory, "Mochi.download.exe"), update);
             UpdateDiagnostics.At("Checking write access to Mochi's folder", delegate {
                 string probe = Path.Combine(Path.GetDirectoryName(target), ".mochi-write-" + Guid.NewGuid().ToString("N"));
@@ -357,9 +417,21 @@ namespace MochiDesktop {
             })) { if (process == null) throw new IOException("Mochi could not restart."); }
         }
         public static int RunHelper(string directory) {
+            try { EnsureNotElevated(); }
+            catch (Exception error) {
+                MessageBox.Show(UpdateService.Explain(error),"Mochi update",MessageBoxButtons.OK,MessageBoxIcon.Warning);
+                return 1;
+            }
+            return RunHelper(directory, delegate(Exception error,string target) {
+                MessageBox.Show(UpdateDiagnostics.Report(error, "Installing the update", target),
+                    "Mochi update", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            });
+        }
+        internal static int RunHelper(string directory, Action<Exception,string> report) {
             InstallRequest request = null;
             bool parentExited = false;
             try {
+                UpdateDiagnostics.At("Checking updater privileges", EnsureNotElevated);
                 request = UpdateDiagnostics.At("Reading the updater handoff", delegate {
                     if (!IsUpdateDirectory(directory)) throw new InvalidDataException("Invalid update directory.");
                     return InstallRequest.Load(directory);
@@ -383,8 +455,7 @@ namespace MochiDesktop {
                 ReplaceAndRestart(directory, request, StartApp);
                 return 0;
             } catch (Exception error) {
-                MessageBox.Show(UpdateDiagnostics.Report(error, "Installing the update", request == null ? null : request.Target),
-                    "Mochi update", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                report(error, request == null ? null : request.Target);
                 if (parentExited && request != null && File.Exists(request.Target)) {
                     try { StartApp(request.Target, "--cleanup-update " + Quote(directory)); } catch {}
                 }

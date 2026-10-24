@@ -1,6 +1,6 @@
-# Playful Mode QA — 1.1.5
+# Playful Mode QA — 1.2.13
 
-Verified in the cloud on 4 October 2026 (Asia/Singapore) with Mono 6.12, Wine 10 / Wine Mono 9.4, and a 1920×1080 Xvfb display. **Live Windows Explorer icon movement has not been verified in this environment.**
+Verified in the cloud on 24 October 2026 (Asia/Singapore) with Microsoft Roslyn and .NET Framework 4.8 reference assemblies, Wine 10 / Wine Mono 9.4, and a 1920×1080 Xvfb display. **Live Windows Explorer icon movement has not been verified in this environment.**
 
 ## Behavior
 
@@ -10,13 +10,13 @@ Verified in the cloud on 4 October 2026 (Asia/Singapore) with Mono 6.12, Wine 10
 - Manual interactions interrupt trips. An unfinished move is restored when the icon is still at Mochi's last position and its original cell is available. User moves and completed drops are preserved.
 - Hidden icons, Auto arrange, an unavailable Shell view, or no suitable free destination cause the attempt to be skipped. Resume after a long pause does not queue multiple pranks.
 - Checking controls or saving unchanged Settings preserves the pending countdown. Blocked attempts retry after 30 seconds. Feeding, petting, play, and swimming finish before another automatic turn starts. Pranks (180–300 seconds) and Idle Activities (feed/pet/play, 60–180 seconds) have independent deadlines; the oldest due turn runs first, with a three-second handoff. Manual interactions preserve pending deadlines. Each stream reschedules only itself on completion.
-- **Playful status** in Settings reads the current desktop availability, current-monitor icon count, pending countdown, and last result. Native connection errors include the failed operation and HRESULT. `playful-status.txt` beside the preferences stores the latest result without icon identities or filenames.
+- **Playful status** in Settings reads the current desktop availability, current-monitor icon count, pending countdown, and last result. Native connection errors include the failed operation and HRESULT. `%LOCALAPPDATA%\Mochi\playful-status.txt` stores the latest result without icon identities or filenames.
 - **Save & try now** requires the enabled checkbox, saves preferences, closes Settings, and requests a prank after one second. A blocked manual attempt explains the reason in a dialog. No diagnostic or test action is added to the right-click menus.
 - Clicking elsewhere no longer cancels an active trip; clicks on Mochi or the selected icon still interrupt it. The previous icon can be selected again when alternatives have no usable route or artwork.
 
 ## Passed checks
 
-The staged executable passed `--self-test` with exit code 0: ten companion groups, five updater groups, and five Playful Mode groups. The Playful Mode suite uses an in-memory desktop; **it never repositions real icons**.
+The staged executable passed all 45 `--self-test` groups with exit code 0, including seven updater and five Playful Mode groups. The Playful Mode suite uses an in-memory desktop; **it never repositions real icons**.
 
 - Settings defaults, Save/Cancel, persistence, old preference compatibility, and menu exclusion.
 - 1,260 seeded routes across all three sizes, landscape/portrait/negative-coordinate monitors, and edge icons. Coverage includes all 16 heading sectors, straight/curved/mixed paths, varied distances, both animation variants and facings, and on-screen body/cargo bounds.
@@ -26,6 +26,7 @@ The staged executable passed `--self-test` with exit code 0: ten companion group
 - Deadline handoffs from all four animation categories, preservation through repeated control visits, mode enable/disable timing, opt-in immediate attempts, blocked-state explanations and 30-second recovery, read-only status, unrelated versus selected-icon mouse clicks, and fallback to the only usable icon.
 - Independent deadlines in both queue orders, three-second handoffs, blocked-prank fallback, manual priority, mode toggles, bounded suspension recovery, and two simulated hours with feed, pet, play, and prank coverage and no overlapping animations.
 - Native COM interop fixture with separate browser, shell-view, and folder-view vtables: the view rejects `QueryInterface(IOleWindow)` with `0x80004002`, while the corrected connection reads its window through `IShellView.GetWindow`. Tests exercise the actual CLR COM marshaler, distinguish failures at each interface step, and verify reference cleanup. No real desktop icons are accessed by this fixture.
+- Production Explorer work runs on one dedicated STA thread. Each UI request has a 750 ms bound; a timeout opens a restart-scoped circuit breaker so a hung shell extension cannot keep freezing Mochi or create an unbounded series of blocked worker threads.
 - A companion at the opposite end of its monitor still selects the available icon and swims all the way to the pickup point before moving the icon. There is no proximity cutoff for icons on Mochi's current monitor.
 
 A separate UI smoke check launched Settings, enabled the mode, saved, reopened Settings through the second-instance IPC path, disabled the mode, and confirmed both saved values without an application error. The [settings screenshot](previews/playful-mode-settings.png) shows the enabled checkbox.
@@ -44,7 +45,7 @@ Build to an existing staging directory first. These diagnostic commands run inde
 
 ```powershell
 New-Item -ItemType Directory -Force .\staging | Out-Null
-& '.\Project Files\source\build.ps1' -OutputPath "$PWD\staging\Mochi.exe"
+& '.\Project Files\source\build.ps1' -OutputPath "$PWD\staging\Mochi.exe" -NoUpdateManifest -TestHooks
 Start-Process .\staging\Mochi.exe -WorkingDirectory "$PWD\staging" -ArgumentList '--self-test results.txt' -Wait
 Get-Content .\staging\results.txt
 Get-Content .\staging\playful-test-results.txt
@@ -58,7 +59,7 @@ The status probe reads availability and icon count only. It neither changes posi
 ## Native Windows checks still pending
 
 1. On Windows 10 and 11, prepare a few sample desktop files, folders, and shortcuts. Turn off **Auto arrange icons**, keep **Show desktop icons** on, then enable Playful Mode in Mochi's Settings. Confirm the pet and tray menus have no Playful Mode toggle.
-   Use **Playful status** to check desktop access, then **Save & try now** for an immediate attempt. If blocked, retain `playful-status.txt` to identify the failed Windows operation. Check that merely viewing Settings preserves the pending countdown and that a blocked attempt recovers within 30 seconds after correcting the desktop setting.
+   Use **Playful status** to check desktop access, then **Save & try now** for an immediate attempt. If blocked, retain `%LOCALAPPDATA%\Mochi\playful-status.txt` to identify the failed Windows operation. Check that merely viewing Settings preserves the pending countdown and that a blocked attempt recovers within 30 seconds after correcting the desktop setting.
 2. Leave Mochi idle through several 3–5 minute waits. Confirm both grab/bite variants, readable speech, varied directions/routes/distances, an upright carried icon, and a free visible drop location. Confirm names, contents, and paths stay unchanged and other icons stay in place.
    With Playful Mode enabled, confirm automatic feeding, petting, and play still appear. When another turn is due during an animation, confirm it starts after a three-second pause; visiting controls or completing a prank must not reset its countdown.
 3. Check with **Align icons to grid** both on and off, each desktop icon size, Mochi's three sizes, and 100%/150%/200% display scaling. Verify pickup alignment, no duplicate-looking cargo, label spacing, and unobstructed mouse input.
@@ -67,4 +68,4 @@ The status probe reads availability and icon count only. It neither changes posi
 6. During a trip, move/delete the selected sample icon, change icon size, enable Auto arrange, hide desktop icons, restart Explorer, or change display configuration. Confirm Mochi stops without moving a different icon or disrupting the desktop.
 7. Pause ordinary swimming and confirm pranks continue. Disable Playful Mode and confirm no further pranks occur. Suspend/resume Windows and confirm there is no burst of overdue trips.
 
-Publish a tested `Mochi.exe` and its generated `Project Files/update.xml` together. The manifest records the root executable’s version, exact size, and SHA-256.
+Publish only the trusted, timestamped Authenticode build and its production-key-signed `Project Files/update.xml` together. The manifest records the executable's version, exact size, SHA-256, and detached signature.

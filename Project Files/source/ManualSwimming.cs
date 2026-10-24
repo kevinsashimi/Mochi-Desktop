@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Drawing;
 using System.Windows.Forms;
 
@@ -96,12 +97,16 @@ namespace MochiDesktop {
     sealed class ManualSwimOverlay : Form {
         readonly Atlas atlas;readonly bool faceRight;readonly ManualSwimInput input;readonly Action completed;
         readonly ManualGuideVisibility guide;
+        readonly Action<IntPtr,Bitmap,Point,byte> presentation;
+        readonly double createdAt;
         Bitmap guideArt,guidePage;byte shownAlpha;double nextGuidePaint;Rectangle guideBounds;
-        bool finished;MouseButtons pressed;
+        double nextNativeAttempt;bool guideDirty=true,finished;MouseButtons pressed;
         protected override bool ShowWithoutActivation {get{return true;}}
         protected override CreateParams CreateParams {get{CreateParams p=base.CreateParams;p.ExStyle|=0x80000|0x80;return p;}}
-        public ManualSwimOverlay(Rectangle bounds,Atlas art,bool right,ManualSwimInput keys,Action finish,double now=0){
-            atlas=art;faceRight=right;input=keys;completed=finish;Text="Manual mode - Mochi";
+        public ManualSwimOverlay(Rectangle bounds,Atlas art,bool right,ManualSwimInput keys,Action finish,double now=0,
+            Action<IntPtr,Bitmap,Point,byte> present=null){
+            atlas=art;faceRight=right;input=keys;completed=finish;createdAt=now;Text="Manual mode - Mochi";
+            presentation=present??Native.SetBitmap;
             guide=new ManualGuideVisibility(now,Cursor.Position);
             FormBorderStyle=FormBorderStyle.None;ShowInTaskbar=false;TopMost=true;StartPosition=FormStartPosition.Manual;Bounds=bounds;
             KeyPreview=true;SetStyle(ControlStyles.StandardDoubleClick,false);
@@ -114,7 +119,7 @@ namespace MochiDesktop {
             using(Graphics g=Graphics.FromImage(guidePage))g.Clear(Color.FromArgb(1,10,39,56));
             guideArt=ManualGuideRenderer.Draw(Size,atlas,faceRight);
             guideBounds=ManualGuideRenderer.Place(Size,guideArt.Size,Rectangle.Empty,Rectangle.Empty);
-            PresentGuide(255);
+            PresentGuide(255,createdAt);
         }
         public void AdvanceGuide(double now,Point cursor,Rectangle body){
             guide.Advance(now,cursor,input.HasControls);byte alpha=(byte)Math.Round(guide.Opacity*255);
@@ -126,18 +131,19 @@ namespace MochiDesktop {
                     g.CompositingMode=System.Drawing.Drawing2D.CompositingMode.SourceCopy;g.FillRectangle(shield,guideBounds);
                 }
                 guideBounds=bounds;
+                guideDirty=true;
             }
-            if(!moved && (alpha==shownAlpha || now<nextGuidePaint))return;
+            if(now<nextNativeAttempt)return;
+            if(!guideDirty && !moved && (alpha==shownAlpha || now<nextGuidePaint))return;
             nextGuidePaint=now+1.0/30;
-            PresentGuide(alpha);
+            PresentGuide(alpha,now);
         }
         public void KeepGuideBehind(IntPtr pet){
             // Activation can raise the focused input shield after the card was
             // shown. Keep the entire stack ordered without changing focus.
             Native.PlaceManualGuideBehind(Handle,pet);
         }
-        void PresentGuide(byte alpha){
-            shownAlpha=alpha;
+        void PresentGuide(byte alpha,double now){
             Rectangle bounds=guideBounds;
             using(Graphics g=Graphics.FromImage(guidePage)){
                 g.CompositingMode=System.Drawing.Drawing2D.CompositingMode.SourceCopy;
@@ -148,7 +154,9 @@ namespace MochiDesktop {
                     g.DrawImage(guideArt,bounds,0,0,guideArt.Width,guideArt.Height,GraphicsUnit.Pixel,blend);
                 }
             }
-            Native.SetBitmap(Handle,guidePage,Location);
+            try{presentation(Handle,guidePage,Location,255);}
+            catch(Win32Exception){guideDirty=true;nextNativeAttempt=now+Companion.NativeRetryDelay;return;}
+            shownAlpha=alpha;guideDirty=false;nextNativeAttempt=0;
         }
         protected override bool IsInputKey(Keys keyData){return ManualSwimInput.Accepts(keyData&Keys.KeyCode) || base.IsInputKey(keyData);}
         protected override void OnKeyDown(KeyEventArgs e){
@@ -192,10 +200,22 @@ namespace MochiDesktop {
         double nextManualBoostAt;
         ManualBoostWake manualWake;
         ManualWakeWindow manualWakeWindow;
+        double nextManualGuideAttempt,nextManualWakeAttempt;
+        bool manualPetNeedsPlacement,manualWakeNeedsPlacement,simulateNativePresentation;
+        Action<ManualSwimOverlay,IntPtr> manualGuidePlacement;
+        Action manualPetPlacement;
+        Func<Bitmap,Rectangle,bool> manualWakePresentation;
+        Action manualWakePlacement;
         BoostAnimation manualBoostAnimation;
         int lastBoostStyle=-1;
         int lastBoostLine=-1;
         static readonly string[] BoostLines={"Wheee!\nBubble-powered!","Tiny shark.\nTurbo fins!","Zoomies: activated!","Catch me if\nyou fin!","Fast and\nfin-tastic!","No brakes!\nOkay, tiny brakes.","Sea you later!","I am speed!\nVery cute speed."};
+        void EnsureManualNativeActions(){
+            if(manualGuidePlacement==null)manualGuidePlacement=delegate(ManualSwimOverlay overlay,IntPtr pet){overlay.KeepGuideBehind(pet);};
+            if(manualPetPlacement==null)manualPetPlacement=delegate{Native.RaiseForManualSwimming(Handle);};
+            if(manualWakePresentation==null)manualWakePresentation=PresentManualWakeBitmap;
+            if(manualWakePlacement==null)manualWakePlacement=PlaceManualWake;
+        }
         void StartManualSwimming(){
             if(closing || modal)return;
             CancelInteraction();CloseReleaseWelcome();down=dragging=false;Capture=false;
@@ -203,13 +223,14 @@ namespace MochiDesktop {
             Rectangle area=Screen.FromRectangle(Bounds).Bounds;
             manualSwim=new ManualSwimMotion(Location,Size,area,Now,faceRight,nextManualBoostAt);Location=Point.Round(manualSwim.Position);
             manualWake=new ManualBoostWake(area,simulation?new Random(502):new Random());
+            EnsureManualNativeActions();nextManualGuideAttempt=nextManualWakeAttempt=0;manualPetNeedsPlacement=manualWakeNeedsPlacement=false;
             row=frame=0;actionStart=Now;actionUntil=0;bubble="You're the captain!\nI'll bring the fins.";bubbleUntil=Now+3.5;
             RefreshManualBody();
             if(simulation)return;
             try {
                 manualOverlay=new ManualSwimOverlay(area,atlas,faceRight,manualSwim.Input,StopManualSwimming,Now);
-                manualOverlay.Show();TopMost=true;Render();manualOverlay.Activate();Native.RaiseForManualSwimming(Handle);
-                manualOverlay.KeepGuideBehind(Handle);
+                manualOverlay.Show();TopMost=true;Render();manualOverlay.Activate();manualPetNeedsPlacement=true;
+                PlaceManualGuide(Now,false,Point.Empty);
                 // Activation can fail if another application took focus during menu dismissal.
                 if(manualOverlay!=null)manualOverlay.CheckFocusLater();
             }catch{StopManualSwimming();Act(0,"My fins need a moment.\nPlease try again!",3);}
@@ -221,6 +242,7 @@ namespace MochiDesktop {
             manualSwim.Input.Clear();manualSwim=null;manualMoving=false;
             if(manualBody!=null){manualBody.Dispose();manualBody=null;}
             manualBoostAnimation=null;manualWake=null;if(manualWakeWindow!=null){manualWakeWindow.Dispose();manualWakeWindow=null;}
+            nextManualGuideAttempt=nextManualWakeAttempt=0;manualPetNeedsPlacement=manualWakeNeedsPlacement=false;
             ManualSwimOverlay overlay=manualOverlay;manualOverlay=null;if(overlay!=null)overlay.Dismiss();
             swimGaze.Reset();swimFraction=PointF.Empty;row=frame=0;actionStart=Now;actionUntil=0;bubble="";bubbleUntil=0;
             edgeWatch.Reset(Now);Schedule();PauseAutomaticActivities();
@@ -251,13 +273,17 @@ namespace MochiDesktop {
             if(manualBoostAnimation!=null && manualBoostAnimation.Finished(now))manualBoostAnimation=null;
             RefreshManualBody();
             manualWake.Advance(now,previous,manualSwim.Position,manualSwim.Velocity,prefs.Size,now<=manualSwim.BoostUntil+.04);
-            if(manualOverlay!=null){
-                Rectangle visible=manualBodyBounds;visible.Offset(Location);
-                manualOverlay.AdvanceGuide(now,cursor,visible);
-                manualOverlay.KeepGuideBehind(Handle);
-            }
+            if(manualOverlay!=null)PlaceManualGuide(now,true,cursor);
             Render();
-            if(!simulation)PresentManualWake(now);
+            if(!simulation || simulateNativePresentation)PresentManualWake(now);
+        }
+        void PlaceManualGuide(double now,bool advance,Point cursor){
+            if(now<nextManualGuideAttempt || manualOverlay==null)return;
+            try{
+                if(manualPetNeedsPlacement){manualPetPlacement();manualPetNeedsPlacement=false;}
+                if(advance){Rectangle visible=manualBodyBounds;visible.Offset(Location);manualOverlay.AdvanceGuide(now,cursor,visible);}
+                manualGuidePlacement(manualOverlay,Handle);nextManualGuideAttempt=0;
+            }catch(Win32Exception){nextManualGuideAttempt=now+NativeRetryDelay;}
         }
         void RefreshManualBody(){
             if(manualBody!=null)manualBody.Dispose();manualBody=DrawManualBody();
@@ -293,13 +319,20 @@ namespace MochiDesktop {
         }
         void PresentManualWake(double now){
             Rectangle bounds=manualWake.Bounds(now);
-            if(bounds.IsEmpty){if(manualWakeWindow!=null)manualWakeWindow.Hide();return;}
-            if(manualWakeWindow==null)manualWakeWindow=new ManualWakeWindow();
-            bool showing=!manualWakeWindow.Visible;
-            using(Bitmap frame=manualWake.Draw(now,bounds))manualWakeWindow.Present(frame,bounds);
-            // The layered bitmap update preserves z-order. Establish it once on
-            // showing, rather than generating window-position messages every frame.
-            if(showing){Native.RaiseForManualSwimming(manualWakeWindow.Handle);Native.RaiseForManualSwimming(Handle);}
+            if(bounds.IsEmpty){if(manualWakeWindow!=null)manualWakeWindow.Hide();manualWakeNeedsPlacement=false;return;}
+            if(now<nextManualWakeAttempt)return;
+            try{
+                using(Bitmap frame=manualWake.Draw(now,bounds))if(manualWakePresentation(frame,bounds))manualWakeNeedsPlacement=true;
+                // The layered bitmap update preserves z-order. Establish it once on
+                // showing, rather than generating window-position messages every frame.
+                if(manualWakeNeedsPlacement){manualWakePlacement();manualWakeNeedsPlacement=false;}
+                nextManualWakeAttempt=0;
+            }catch(Win32Exception){nextManualWakeAttempt=now+NativeRetryDelay;}
         }
+        bool PresentManualWakeBitmap(Bitmap frame,Rectangle bounds){
+            if(manualWakeWindow==null)manualWakeWindow=new ManualWakeWindow();
+            bool showing=!manualWakeWindow.Visible;manualWakeWindow.Present(frame,bounds);return showing;
+        }
+        void PlaceManualWake(){Native.RaiseForManualSwimming(manualWakeWindow.Handle);Native.RaiseForManualSwimming(Handle);}
     }
 }

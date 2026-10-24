@@ -2,6 +2,17 @@
 
 Small updates for your little ocean. These notes are also available offline in Settings → What's New.
 
+## 1.2.13 - Safer currents, steadier swims
+
+### Updates you can trust
+- Mochi now verifies every update announcement with a dedicated signing key before downloading or installing the new app.
+- Public releases require a trusted, timestamped Windows publisher signature. Mochi also asks to be reopened normally instead of updating from an administrator session.
+
+### Smoother recovery
+- Temporary Windows drawing and Manual mode placement failures retry quietly while keeping the last good frame visible.
+- Settings files have strict XML and size limits, saves use a fresh temporary file, and startup coordination is isolated to the current user and Mochi folder.
+- Playful Mode performs bounded icon checks, Quiet Cove revalidates Explorer windows before reuse, and diagnostic reports stay in the current user's local app-data folder.
+
 ## 1.2.12 - A smoother start for Mochi
 
 ### A little patience at startup

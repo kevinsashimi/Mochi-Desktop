@@ -9,7 +9,14 @@ namespace MochiDesktop {
     sealed class DesktopWallpaperHost {
         public readonly IntPtr Parent,Icons,Wallpaper;
         public readonly bool Layered;
-        public DesktopWallpaperHost(IntPtr parent,IntPtr icons,IntPtr wallpaper,bool layered){Parent=parent;Icons=icons;Wallpaper=wallpaper;Layered=layered;}
+        public readonly uint ProcessId;
+        public readonly string ParentClass,IconsClass,WallpaperClass;
+        public DesktopWallpaperHost(IntPtr parent,IntPtr icons,IntPtr wallpaper,bool layered):
+            this(parent,icons,wallpaper,layered,WallpaperNative.ProcessId(parent),WallpaperNative.ClassName(parent),WallpaperNative.ClassName(icons),WallpaperNative.ClassName(wallpaper)){}
+        internal DesktopWallpaperHost(IntPtr parent,IntPtr icons,IntPtr wallpaper,bool layered,uint process,string parentClass,string iconsClass,string wallpaperClass){
+            Parent=parent;Icons=icons;Wallpaper=wallpaper;Layered=layered;ProcessId=process;
+            ParentClass=parentClass;IconsClass=iconsClass;WallpaperClass=wallpaperClass;
+        }
         public string Description {get{return Layered?"Windows layered desktop":"Classic Windows desktop";}}
     }
     // Windows 11's raised desktop requires a layered sibling between DefView and
@@ -65,9 +72,20 @@ namespace MochiDesktop {
             return FindExistingHost(progman);
         }
         internal static bool HostAlive(DesktopWallpaperHost host){
-            if(host==null || !IsWindow(host.Parent) || !IsWindowVisible(host.Parent) || !IsWindow(host.Icons) || !IsWindow(host.Wallpaper))return false;
+            // DefView may be hidden when the user turns off desktop icons; that does
+            // not invalidate Explorer's wallpaper topology.
+            if(host==null || !IsWindow(host.Parent) || !IsWindowVisible(host.Parent) || !IsWindow(host.Icons) || !IsWindow(host.Wallpaper) || !IsWindowVisible(host.Wallpaper))return false;
+            // HWND values can be recycled after Explorer restarts. Recheck the
+            // process and class identity captured when this topology was selected,
+            // rather than accepting an unrelated window that reused the handle.
+            if(ProcessId(host.Parent)!=host.ProcessId || ProcessId(host.Icons)!=host.ProcessId || ProcessId(host.Wallpaper)!=host.ProcessId ||
+                ClassName(host.Parent)!=host.ParentClass || ClassName(host.Icons)!=host.IconsClass || ClassName(host.Wallpaper)!=host.WallpaperClass ||
+                host.IconsClass!="SHELLDLL_DefView" || host.WallpaperClass!="WorkerW")return false;
             if(host.Layered)return GetParent(host.Icons)==host.Parent && GetParent(host.Wallpaper)==host.Parent && IsRaised(host.Parent,host.Icons);
-            return !IsRaised(GetParent(host.Icons),host.Icons);
+            if(host.Parent!=host.Wallpaper || IsRaised(GetParent(host.Icons),host.Icons))return false;
+            IntPtr iconHost=GetParent(host.Icons),wallpaperParent=GetParent(host.Wallpaper);
+            return wallpaperParent==iconHost?IsBelow(host.Wallpaper,host.Icons):
+                wallpaperParent==GetParent(iconHost) && IsBelow(host.Wallpaper,iconHost);
         }
         static bool IsRaised(IntPtr parent,IntPtr icons){return (GetWindowLong(parent,-20)&0x00200000)!=0 || (GetWindowLong(icons,-20)&0x80000)!=0;}
         internal static DesktopWallpaperHost FindExistingHost(IntPtr progman){
@@ -142,6 +160,8 @@ namespace MochiDesktop {
             return result.ToArray();
         }
         internal static string ClassName(IntPtr window){StringBuilder text=new StringBuilder(256);GetClassName(window,text,text.Capacity);return text.ToString();}
+        internal static uint ProcessId(IntPtr window){uint process;return GetWindowThreadProcessId(window,out process)==0?0:process;}
+        internal static uint CurrentProcessId(){return GetCurrentProcessId();}
         internal static string FailureDetails(Exception error){
             System.ComponentModel.Win32Exception native=error as System.ComponentModel.Win32Exception;
             if(native==null)return error.Message;
@@ -198,6 +218,7 @@ namespace MochiDesktop {
         [DllImport("user32.dll",CharSet=CharSet.Unicode)] static extern IntPtr FindWindowEx(IntPtr parent,IntPtr after,string name,string title);
         [DllImport("user32.dll")] static extern IntPtr SendMessageTimeout(IntPtr window,uint message,IntPtr wp,IntPtr lp,uint flags,uint timeout,out IntPtr result);
         [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr window,out uint process);
+        [DllImport("kernel32.dll")] static extern uint GetCurrentProcessId();
         [DllImport("user32.dll",CharSet=CharSet.Unicode)] static extern int GetClassName(IntPtr window,StringBuilder text,int size);
         [DllImport("user32.dll")] internal static extern bool GetWindowRect(IntPtr window,out Rect rect);
         [DllImport("user32.dll")] internal static extern bool GetClientRect(IntPtr window,out Rect rect);

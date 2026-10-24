@@ -58,7 +58,7 @@ namespace MochiDesktop {
                 WallpaperNative.MonitorArea[] monitors=WallpaperNative.Monitors();
                 StringBuilder key=new StringBuilder();foreach(WallpaperNative.MonitorArea monitor in monitors)key.Append(monitor.Bounds);
                 bool rebuild=!WallpaperNative.HostAlive(desktop) || displays!=key.ToString();
-                foreach(StaticWallpaperSurface surface in surfaces)if(!WallpaperNative.IsWindow(surface.Handle) || !WallpaperNative.IsWindow(surface.DesktopHandle))rebuild=true;
+                foreach(StaticWallpaperSurface surface in surfaces)if(!surface.Matches(desktop))rebuild=true;
                 if(rebuild){
                     Clear();desktop=WallpaperNative.FindWallpaperHost();
                     if(desktop==null){Status="Waiting for the Windows desktop. Your usual wallpaper is still showing.";retryAfter=DateTime.UtcNow.AddSeconds(30);return;}
@@ -81,7 +81,7 @@ namespace MochiDesktop {
             }
         }
         public string GetStatus(){
-            string path=Path.Combine(Program.DataDirectory,"wallpaper-status.txt");
+            string path=Path.Combine(Program.DiagnosticsDirectory,"wallpaper-status.txt");
             StringBuilder report=new StringBuilder("Mochi "+AppVersion.Text+"\r\n"+DateTime.Now.ToString("O")+"\r\n"+Status+"\r\n");
             report.AppendLine("Wallpaper: Quiet Cove (static). Native artwork: 3840 x 2160. Full-screen 1:1 pixels on a 3840 x 2160 display; proportional reduction for smaller screens.");
             foreach(StaticWallpaperSurface surface in surfaces)report.AppendLine("Display: "+surface.ScreenBounds+"; paint requests: "+surface.PaintCount);
@@ -119,11 +119,18 @@ namespace MochiDesktop {
             }catch{Dispose();throw;}
         }
         public void EnsurePlacement(DesktopWallpaperHost host){
-            if(WallpaperNative.GetParent(DesktopHandle)!=host.Parent)throw new InvalidOperationException("The desktop changed; Quiet Cove will reconnect.");
+            if(!Matches(host))throw new InvalidOperationException("The desktop changed; Quiet Cove will reconnect.");
             if(host.Layered){
                 if(!WallpaperNative.IsBelow(DesktopHandle,host.Icons) || !WallpaperNative.IsBelow(host.Wallpaper,DesktopHandle))layer.ShowBelow(host.Icons);
                 if(!WallpaperNative.IsBelow(host.Wallpaper,DesktopHandle))throw new InvalidOperationException("The desktop background moved; Quiet Cove will reconnect.");
             }
+        }
+        internal bool Matches(DesktopWallpaperHost host){
+            if(disposed || host==null || !WallpaperNative.IsWindow(Handle) || WallpaperNative.ClassName(Handle)!=WallpaperNative.CanvasClass ||
+                WallpaperNative.ProcessId(Handle)!=WallpaperNative.CurrentProcessId())return false;
+            if(layer!=null)return host.Layered && WallpaperNative.IsWindow(layer.Handle) && WallpaperNative.ClassName(layer.Handle)==WallpaperNative.LayerClass &&
+                WallpaperNative.ProcessId(layer.Handle)==WallpaperNative.CurrentProcessId() && WallpaperNative.GetParent(layer.Handle)==host.Parent && WallpaperNative.GetParent(Handle)==layer.Handle;
+            return !host.Layered && WallpaperNative.GetParent(Handle)==host.Parent;
         }
         protected override void WndProc(ref Message message){
             if(message.Msg==0x84){message.Result=new IntPtr(-1);return;}

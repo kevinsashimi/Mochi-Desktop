@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace MochiDesktop {
     enum DesktopIconStatus { Available, AutoArrange, HiddenIcons, Unavailable }
@@ -34,8 +35,81 @@ namespace MochiDesktop {
     interface IDesktopIcons : IDisposable {
         string Problem { get; }
         DesktopLayout Read();
+        bool TryGet(string id, out DesktopItem item);
         Bitmap Picture(string id);
         bool TryMove(string id, Point expected, Point destination, out Point actual);
+    }
+
+    // Explorer COM calls normally return quickly, but a hung shell extension must
+    // not hold WinForms' UI thread forever. All production icon access stays on one
+    // dedicated STA thread and trips a restart-scoped circuit breaker on timeout.
+    sealed class BoundedDesktopIcons : IDesktopIcons {
+        sealed class WorkItem {
+            public Func<IDesktopIcons,object> Action;
+            public readonly ManualResetEvent Done=new ManualResetEvent(false);
+            public object Result;public Exception Error;
+        }
+        readonly object gate=new object();readonly Queue<WorkItem> queue=new Queue<WorkItem>();
+        static volatile bool shellTimedOut;
+        readonly AutoResetEvent wake=new AutoResetEvent(false);readonly Thread worker;readonly int timeout;
+        volatile bool failed,stopping,disposed;string problem="";
+        public string Problem {get{lock(gate)return problem;}}
+        public BoundedDesktopIcons():this(delegate{return new WindowsDesktopIcons();},750){}
+        internal BoundedDesktopIcons(Func<IDesktopIcons> create,int timeoutMilliseconds){
+            timeout=Math.Max(50,timeoutMilliseconds);
+            if(shellTimedOut){failed=true;problem="Windows Explorer did not respond in time. Playful Mode is paused until Mochi restarts.";return;}
+            worker=new Thread(delegate(){Run(create);}){IsBackground=true,Name="Mochi desktop icons"};
+            worker.SetApartmentState(ApartmentState.STA);worker.Start();
+        }
+        void Run(Func<IDesktopIcons> create){
+            IDesktopIcons inner=null;Exception startup=null;
+            try{
+                try{inner=create();}catch(Exception error){startup=error;}
+                while(true){
+                    WorkItem item=null;
+                    lock(gate){if(queue.Count>0)item=queue.Dequeue();else if(stopping)break;}
+                    if(item==null){wake.WaitOne();continue;}
+                    try{
+                        if(startup!=null)throw startup;
+                        item.Result=item.Action(inner);lock(gate)problem=inner.Problem;
+                    }catch(Exception error){item.Error=error;}
+                    item.Done.Set();
+                }
+            }finally{if(inner!=null)try{inner.Dispose();}catch{}}
+        }
+        T Invoke<T>(Func<IDesktopIcons,T> action,T fallback){
+            WorkItem item=new WorkItem{Action=delegate(IDesktopIcons inner){return action(inner);}};
+            lock(gate){
+                if(disposed || failed){item.Done.Dispose();return fallback;}
+                queue.Enqueue(item);
+            }
+            wake.Set();
+            if(!item.Done.WaitOne(timeout)){
+                shellTimedOut=true;
+                lock(gate){failed=stopping=true;problem="Windows Explorer did not respond in time. Playful Mode is paused until Mochi restarts.";queue.Clear();}
+                wake.Set();return fallback;
+            }
+            item.Done.Dispose();
+            if(item.Error!=null)throw item.Error;
+            return (T)item.Result;
+        }
+        public DesktopLayout Read(){
+            DesktopLayout result=Invoke(delegate(IDesktopIcons inner){return inner.Read();},null);
+            return result??new DesktopLayout{Status=DesktopIconStatus.Unavailable,Detail=Problem};
+        }
+        public bool TryGet(string id,out DesktopItem item){
+            Tuple<bool,DesktopItem> result=Invoke(delegate(IDesktopIcons inner){DesktopItem found;return Tuple.Create(inner.TryGet(id,out found),found);},null);
+            item=result==null?null:result.Item2;return result!=null&&result.Item1;
+        }
+        public Bitmap Picture(string id){return Invoke(delegate(IDesktopIcons inner){return inner.Picture(id);},(Bitmap)null);}
+        public bool TryMove(string id,Point expected,Point destination,out Point actual){
+            Tuple<bool,Point> result=Invoke(delegate(IDesktopIcons inner){Point moved;return Tuple.Create(inner.TryMove(id,expected,destination,out moved),moved);},null);
+            actual=result==null?expected:result.Item2;return result!=null&&result.Item1;
+        }
+        public void Dispose(){
+            if(disposed)return;disposed=true;lock(gate){stopping=true;queue.Clear();}
+            if(worker==null){wake.Dispose();return;}wake.Set();if(worker.Join(100))wake.Dispose();
+        }
     }
 
     // Explorer's documented Shell folder-view interfaces marshal across processes.
@@ -46,6 +120,8 @@ namespace MochiDesktop {
         IFolderView folderView;
         IntPtr viewWindow, root;
         bool disposed, connected;
+        const int MaximumItems = 2048;
+        readonly Dictionary<string,IntPtr> identities = new Dictionary<string,IntPtr>(StringComparer.OrdinalIgnoreCase);
         string operation = "Connecting to Windows Explorer", problem = "";
         public string Problem { get { return problem; } }
 
@@ -128,16 +204,25 @@ namespace MochiDesktop {
             screen = new Point(point.X, point.Y); return true;
         }
 
-        // Item indexes can change during a trip. Resolve the original parsing identity
-        // again before every operation; never reposition whatever now occupies an index.
+        void Remember(string id,IntPtr item) {
+            if(String.IsNullOrEmpty(id) || item==IntPtr.Zero || identities.ContainsKey(id))return;
+            IntPtr copy=ILClone(item);if(copy!=IntPtr.Zero)identities[id]=copy;
+        }
+
+        // Item indexes can change during a trip. Cache the selected item's PIDL from
+        // the initial snapshot, then address that identity directly. A cache miss is
+        // resolved with one bounded scan; we never reposition the current occupant of
+        // a remembered list index.
         IntPtr Find(string id) {
+            IntPtr remembered;
+            if(identities.TryGetValue(id,out remembered))return ILClone(remembered);
             int count;
-            if (folderView.ItemCount(2, out count) != 0 || count < 0 || count > 10000) return IntPtr.Zero; // SVGIO_ALLVIEW
+            if (folderView.ItemCount(2, out count) != 0 || count < 0 || count > MaximumItems) return IntPtr.Zero; // SVGIO_ALLVIEW
             for (int i = 0; i < count; i++) {
                 IntPtr item;
                 if (folderView.Item(i, out item) != 0 || item == IntPtr.Zero) continue;
                 bool keep = false;
-                try { keep = String.Equals(Identity(item), id, StringComparison.OrdinalIgnoreCase); if (keep) return item; }
+                try { keep = String.Equals(Identity(item), id, StringComparison.OrdinalIgnoreCase); if (keep) {Remember(id,item);return item;} }
                 finally { if (!keep) Marshal.FreeCoTaskMem(item); }
             }
             return IntPtr.Zero;
@@ -155,20 +240,40 @@ namespace MochiDesktop {
                 if (spacing.X <= 0 || spacing.Y <= 0) return new DesktopLayout { Status = DesktopIconStatus.Unavailable, Detail = "Windows Explorer returned invalid icon spacing." };
                 operation = "Counting desktop icons";
                 if (Failed(operation, folderView.ItemCount(2, out count))) return new DesktopLayout { Status = DesktopIconStatus.Unavailable, Detail = problem };
-                if (count < 0 || count > 10000) return new DesktopLayout { Status = DesktopIconStatus.Unavailable, Detail = "Windows Explorer returned an unsupported icon count." };
+                if (count < 0 || count > MaximumItems) return new DesktopLayout { Status = DesktopIconStatus.Unavailable, Detail = "Windows Explorer returned an unsupported icon count." };
                 operation = "Reading desktop icon identities and positions";
                 for (int i = 0; i < count; i++) {
                     IntPtr item;
                     if (folderView.Item(i, out item) != 0 || item == IntPtr.Zero) continue;
                     try {
                         Point position; string id = Identity(item);
-                        if (!String.IsNullOrEmpty(id) && Position(item, out position))
+                        if (!String.IsNullOrEmpty(id) && Position(item, out position)) {
+                            Remember(id,item);
                             result.Items.Add(new DesktopItem { Id = id, Position = position, Cell = new Size(spacing.X, spacing.Y) });
+                        }
                     } finally { Marshal.FreeCoTaskMem(item); }
                 }
                 if (count > 0 && result.Items.Count == 0) { result.Status = DesktopIconStatus.Unavailable; result.Detail = "Windows Explorer listed icons, but their identities or positions could not be read."; }
             } catch (Exception e) { if (!ShellFailure(e)) throw; problem = Failure(e); result = new DesktopLayout { Status = DesktopIconStatus.Unavailable, Detail = problem }; }
             return result;
+        }
+
+        public bool TryGet(string id,out DesktopItem item) {
+            item=null;
+            try {
+                if(Status()!=DesktopIconStatus.Available)return false;
+                NativePoint spacing;
+                operation="Reading desktop icon spacing";
+                if(Failed(operation,folderView.GetSpacing(out spacing)) || spacing.X<=0 || spacing.Y<=0)return false;
+                operation="Checking the selected desktop icon";
+                IntPtr pidl=Find(id);
+                if(pidl==IntPtr.Zero){problem="The selected desktop icon is no longer available.";return false;}
+                try {
+                    Point position;
+                    if(!Position(pidl,out position)){problem="The selected desktop icon position is no longer available.";return false;}
+                    item=new DesktopItem{Id=id,Position=position,Cell=new Size(spacing.X,spacing.Y)};return true;
+                } finally {Marshal.FreeCoTaskMem(pidl);}
+            } catch(Exception e){if(!ShellFailure(e))throw;problem=Failure(e);return false;}
         }
 
         public Bitmap Picture(string id) {
@@ -219,6 +324,8 @@ namespace MochiDesktop {
 
         public void Dispose() {
             if (disposed) return; disposed = true;
+            foreach(IntPtr identity in identities.Values)if(identity!=IntPtr.Zero)Marshal.FreeCoTaskMem(identity);
+            identities.Clear();
             if (root != IntPtr.Zero) { Marshal.FreeCoTaskMem(root); root = IntPtr.Zero; }
             List<object> released = new List<object>();
             foreach (object value in new[] { folder, view, browser, desktop, windows }) {
@@ -242,6 +349,7 @@ namespace MochiDesktop {
         [DllImport("user32.dll")] static extern bool ScreenToClient(IntPtr window, ref NativePoint point);
         [DllImport("shell32.dll")] static extern int SHGetIDListFromObject([MarshalAs(UnmanagedType.IUnknown)] object source, out IntPtr pidl);
         [DllImport("shell32.dll")] static extern IntPtr ILCombine(IntPtr root, IntPtr child);
+        [DllImport("shell32.dll")] static extern IntPtr ILClone(IntPtr pidl);
         [DllImport("shell32.dll")] static extern int SHGetNameFromIDList(IntPtr pidl, uint kind, out IntPtr name);
         [DllImport("shell32.dll", CharSet = CharSet.Unicode)] static extern IntPtr SHGetFileInfo(IntPtr pidl, uint attributes, ref ShellFileInfo info, uint size, uint flags);
 

@@ -49,7 +49,7 @@ See `source/boost-art.md` for artwork provenance and the reproducible packing st
 
 ## Automated checks
 
-Build with `source/build.ps1`, then run `Mochi.exe --manual-self-test <result-file>`.
+Build an isolated test executable with `source/build.ps1 -OutputPath <staging>\Mochi.exe -NoUpdateManifest -TestHooks`, then run `Mochi.exe --manual-self-test <result-file>`.
 The full `--self-test` also includes these checks and writes a separate
 `manual-test-results.txt` beside its other reports.
 

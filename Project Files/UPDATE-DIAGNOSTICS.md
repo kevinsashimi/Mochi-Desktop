@@ -20,11 +20,11 @@ The old executable also supplies its update helper, so publishing a new download
 3. Keep `settings.xml` and the `Project Files` folder.
 4. Launch Mochi and confirm **Info** shows 1.1.6 and the expected path.
 
-The fixed helper will be used for future updates. Opening a second copy while Mochi is running reopens the existing instance's Settings, so quit the old instance before testing another folder. The earlier 1.1.4.1 diagnostic build is superseded; installing the uncorrected published 1.1.5 would retain this updater bug.
+The fixed helper will be used for future updates. Current versions coordinate one running copy per user and installation folder; another launch from the same folder reopens Settings, while a copy in another folder can run independently. The earlier 1.1.4.1 diagnostic build is superseded; installing the uncorrected published 1.1.5 would retain this updater bug.
 
 ## Error reporting
 
-Failures show the failed operation, exception type, HRESULT, underlying message, and native Windows error code when available. `update-error.txt` records the full exception and running/target paths next to preferences (`Project Files` when present), with `%LOCALAPPDATA%\Mochi` as a fallback. If both locations are blocked, the dialog retains the error details. Reports stay on the PC and are not uploaded.
+Failures show the failed operation, exception type, HRESULT, underlying message, and native Windows error code when available. `update-error.txt` records the full exception and running/target paths under `%LOCALAPPDATA%\Mochi`. If that location is blocked, the dialog retains the error details. Reports stay on the PC and are not uploaded.
 
 Download verification, version checks, parent-process identity checks, waiting for exit, atomic replacement, rollback, and settings preservation remain in place. Mochi closes only after the helper starts successfully.
 

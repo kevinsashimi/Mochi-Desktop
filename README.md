@@ -10,7 +10,7 @@ Meet Mochi, a tiny animated companion for Windows who swims around your desktop,
 
 Mochi stays **behind your app windows**, so he can keep you company while you work. He runs locally, with no account or API key needed. Playing with Mochi works offline; only update checks and downloads use the internet.
 
-**[Download Mochi.exe](https://github.com/kevinsashimi/Mochi-Desktop/raw/refs/heads/main/Mochi.exe)** · [Get started](#1-bring-mochi-home) · [Learn the controls](#2-say-hello) · [What's New](CHANGELOG.md)
+**[Download the signed Mochi.exe release](https://github.com/kevinsashimi/Mochi-Desktop/releases/latest/download/Mochi.exe)** · [Get started](#1-bring-mochi-home) · [Learn the controls](#2-say-hello) · [What's New](CHANGELOG.md)
 
 ## A few of Mochi's moves
 
@@ -34,7 +34,7 @@ You need a **Windows PC with .NET Framework**. Modern Windows PCs, including Win
 
 You don’t need to install or compile anything—Mochi is ready to swim right out of the box! 🌊
 
-1. **[Download Mochi.exe](https://github.com/kevinsashimi/Mochi-Desktop/raw/refs/heads/main/Mochi.exe).** This single file includes Mochi and his artwork.
+1. **[Download the signed Mochi.exe release](https://github.com/kevinsashimi/Mochi-Desktop/releases/latest/download/Mochi.exe).** This single file includes Mochi and his artwork.
 2. **Give him a home.** Save the file in a folder you can write to and plan to keep, such as `Documents\Mochi`. This lets the app save your preferences and install updates.
 3. **Double-click `Mochi.exe`.** Mochi will appear at a random safe spot on one of your monitors and say hello.
 4. **Show your desktop and find him.** Minimize any windows covering him, then give him a click!
@@ -128,7 +128,7 @@ The wallpaper is **off by default**, including when upgrading from the live-wall
 
 The painting is **3840 × 2160 pixels**, filling a 4K UHD screen edge to edge without stretching, zooming or a blue border. The original cove stays at its original scale in the centre, surrounded by newly painted grottoes, rippling water and a wider sandy seabed. Smaller screens fit the full painting proportionally; different aspect ratios or displays larger than 4K may still have a blue surround. This is a static image; the previous live scene and artwork have been removed from the app. Mochi still swims, snacks and plays as usual!
 
-Quiet Cove uses the standard Windows Explorer desktop and does not need the old OpenGL renderer. **Wallpaper status** in Settings shows whether it is attached and saves a `wallpaper-status.txt` report if you need help.
+Quiet Cove uses the standard Windows Explorer desktop and does not need the old OpenGL renderer. **Wallpaper status** in Settings shows whether it is attached and saves a `wallpaper-status.txt` report under `%LOCALAPPDATA%\Mochi` if you need help.
 
 ## Playful Mode: tiny fins, a little mischief
 
@@ -150,19 +150,19 @@ Before his first little heist, right-click an empty part of your **Windows deskt
 
 Playful Mode and the snack / pat / play cycle keep their own clocks, so you still get all of Mochi’s regular antics! If both are due, the one waiting longest goes first, with a **three-second breather** before the next queued animation. After each activity finishes, Idle Activities wait **1–3 minutes** and Playful Mode waits **3–5 minutes**. Each clock keeps its own countdown. He also waits for ongoing swims and your interactions to finish. Clicking or dragging Mochi, opening his controls, or turning the mode off interrupts a trip. Pausing ordinary swimming still allows Playful Mode. To stop future pranks, turn off **Playful Mode** and save; completed rearrangements stay where he left them.
 
-**Waiting for the first heist?** Open Settings, enable Playful Mode, and choose **Save & try now** to request a prank straight away. If Mochi cannot start, he explains what needs attention. **Playful status** shows the countdown, the last result, and whether he can see icons on his current monitor. Checking Settings no longer restarts a pending countdown; if an attempt is blocked, he checks again in 30 seconds. The latest status is also saved as `playful-status.txt` beside your settings, without recording filenames.
+**Waiting for the first heist?** Open Settings, enable Playful Mode, and choose **Save & try now** to request a prank straight away. If Mochi cannot start, he explains what needs attention. **Playful status** shows the countdown, the last result, and whether he can see icons on his current monitor. Checking Settings no longer restarts a pending countdown; if an attempt is blocked, he checks again in 30 seconds. The latest status is also saved under `%LOCALAPPDATA%\Mochi` as `playful-status.txt`, without recording filenames.
 
 ## Keeping Mochi up to date
 
-Mochi checks GitHub for updates in the background each time he starts. If a newer version is available, he asks before downloading and restarting. Choose **No** to keep playing with your current version.
+Mochi checks GitHub for updates in the background each time he starts. Signed update information is verified with Mochi's built-in public key before a newer executable can be accepted. If a newer version is available, he asks before downloading and restarting. Choose **No** to keep playing with your current version.
 
 You can also choose **Check for updates** from his menu, or **Info** to see your current version. Updates replace only the executable and preserve your preferences. Offline? Mochi keeps you company as usual.
 
 After an update, a little **“Fresh out of the tide!”** card shares the highlights once, centred on Mochi's display. Choose **What's New** for the full notes or **Keep swimming** to dismiss it. The card opens without taking keyboard focus and waits while Mochi is busy or his controls are open. You can always catch up through **Settings → What's New** or the [release notes here](CHANGELOG.md).
 
-If you have an older copy without **Check for updates**, quit it and replace it with the [current executable](https://github.com/kevinsashimi/Mochi-Desktop/raw/refs/heads/main/Mochi.exe) once to get the updater.
+If you have an older copy without **Check for updates**, quit it and replace it with the [current signed release](https://github.com/kevinsashimi/Mochi-Desktop/releases/latest/download/Mochi.exe) once to get the updater.
 
-If updating from an older build fails, version **1.1.6** fixes a Windows compatibility error in the updater. Install it once by quitting Mochi and replacing only `Mochi.exe`, keeping your settings and `Project Files`. See the [update troubleshooting notes](Project%20Files/UPDATE-DIAGNOSTICS.md). Quit the existing Mochi before testing a copy from another folder; opening a second copy brings up the running instance.
+If updating from an older build fails, version **1.1.6** fixes a Windows compatibility error in the updater. Install it once by quitting Mochi and replacing only `Mochi.exe`, keeping your settings and `Project Files`. See the [update troubleshooting notes](Project%20Files/UPDATE-DIAGNOSTICS.md). Mochi coordinates one running copy per user and installation folder, so a copy in another folder can run independently.
 
 
 ## A few handy tips
@@ -180,23 +180,24 @@ The app is written in C# using Windows Forms. Explore the [source and artwork](P
 <details>
 <summary>Build Mochi and publish an update</summary>
 
-On Windows, quit Mochi and run this from the repository root in PowerShell. It uses the C# compiler included with .NET Framework; no package restore is needed:
+On Windows, quit Mochi and run this from the repository root in PowerShell. It uses the C# compiler included with .NET Framework; no package restore is needed. Public builds require an offline update-signing PFX plus a trusted Authenticode certificate and timestamp service, configured as described in the [release-signing guide](Project%20Files/UPDATE-SIGNING.md):
 
 ```powershell
-& '.\Project Files\source\build.ps1'
+& '.\Project Files\source\build.ps1' -PublicRelease
 ```
 
-The default build replaces the root `Mochi.exe` and generates `Project Files/update.xml` with its version, size, and SHA-256 checksum. For a staging build, pass both `-OutputPath '...\Mochi.exe'` and `-UpdateManifestPath '...\update.xml'`, using an existing output directory.
+The public build Authenticode-signs the executable, then generates a separately signed `Project Files/update.xml` containing its version, size, and SHA-256 checksum. It verifies both signing configurations before compiling and stages all output before replacing an existing release. For an unsigned local build, pass `-OutputPath '...\Mochi.exe' -NoUpdateManifest`, using an existing output directory. Add `-TestHooks` only to an isolated self-test build; public releases reject that switch.
 
-Cloud builds use Microsoft's Roslyn compiler against .NET Framework 4.8 reference assemblies. Avoid Mono's `mcs` for release builds: it can omit the Windows manifest required by desktop wallpaper windows. With Python 3 available, verify the finished EXE using `python3 'Project Files/build-tools/verify-package.py' Mochi.exe 'Project Files/source/app.manifest'`; the static-wallpaper self-test also checks the running app's manifest.
+Cloud builds use Microsoft's Roslyn compiler against .NET Framework 4.8 reference assemblies. Avoid Mono's `mcs` for release builds: it can omit the Windows manifest required by desktop wallpaper windows. With Python 3 available, verify a finished public release using `python3 'Project Files/build-tools/verify-package.py' Mochi.exe 'Project Files/source/app.manifest' --update-manifest 'Project Files/update.xml' --require-certificate-table`; this checks that a PE signature is present, while `Get-AuthenticodeSignature` must separately report `Valid` with a timestamp. The static-wallpaper self-test checks the running app's process manifest.
 
 To publish an app update:
 
 1. Increase the assembly, file, and informational versions in `Project Files/source/AssemblyInfo.cs`.
    Add the matching `## x.y.z - Title` entry at the top of [CHANGELOG.md](CHANGELOG.md), with `###` sections and `-` bullet points. The first two bullets become the welcome card's highlights. The build embeds this file for the offline reader; the release-notes checks verify the version matches.
-2. Build and test the executable, including the companion (`--self-test`) and updater (`--update-self-test`) checks. Each takes a result-file path as its next argument.
-3. Commit and push the tested root `Mochi.exe`, matching `Project Files/update.xml`, and source changes together to `main`.
+2. Build a separate `-TestHooks` executable and run the companion (`--self-test`) and updater (`--update-self-test`) checks. Each takes a result-file path as its next argument.
+3. Build the public artifact without test hooks. Verify its Authenticode trust and timestamp, signed update metadata, native resources, final size, and SHA-256.
+4. Commit the verified root `Mochi.exe`, matching `Project Files/update.xml`, and source changes together. Push a signed version tag and publish those exact files as immutable GitHub Release assets after review.
 
-Never edit the checksum manually or reuse a version number for a new executable. Clients read the version record and executable from the same commit. GitHub Releases are not required, and documentation-only changes do not trigger an app update.
+Never edit the checksum or signature manually, replace a published version's assets, or reuse a version number for a new executable. Installed clients accept metadata only when its signature matches Mochi's pinned offline key. Documentation-only changes do not trigger an app update.
 
 </details>

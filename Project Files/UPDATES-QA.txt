@@ -1,5 +1,5 @@
-Mochi Desktop updates — version 1.1.6
-Verified 4 October 2026 (Asia/Singapore).
+Mochi Desktop updates — version 1.2.13 security verification
+Verified 24 October 2026 (Asia/Singapore).
 
 Confirmed Windows failure and fix:
 - The user report from diagnostic 1.1.4.1 identified MissingMethodException:
@@ -13,19 +13,25 @@ Confirmed Windows failure and fix:
 
 Behavior:
 - Check for updates and automatic checks pin metadata and Mochi.exe to one GitHub commit.
-- Consent precedes executable download; size, SHA-256, identity and version are verified.
+- Signed update metadata is verified with Mochi's pinned offline public key before
+  a download is offered. Consent precedes executable download; size, SHA-256,
+  identity and version are verified again before installation.
 - The current app stays running until its helper starts; the helper waits for that
   exact parent process to exit, replaces only Mochi.exe, and restarts the new app.
 - Settings and startup shortcuts are preserved; a failed restart restores the old app.
 - Failures show the exact stage, underlying exception/HRESULT and native error code.
-- update-error.txt is saved beside preferences, falling back to LOCALAPPDATA\Mochi.
+- update-error.txt is saved only under LOCALAPPDATA\Mochi, away from portable or synced app folders.
   Reports are local only. A failed report write does not hide the update error.
 - Info shows the running executable path to distinguish copied installations.
 
 Validation:
-- All 22 groups passed: 10 companion, 7 updater, 5 Playful Mode.
+- All 45 groups passed: 10 companion, 8 Manual mode, 4 native placement,
+  5 wallpaper, 3 release notes, 7 updater, 5 Playful Mode, and 3 security.
 - Existing update comparisons, pinned downloads, invalid metadata/payloads, cancellation,
   rollback, locked/changed targets, real helper wait/replacement/restart and UI menus pass.
+- Current security checks also reject missing, malformed and tampered metadata
+  signatures and altered helper handoffs. Release builds accept only the production
+  key; isolated `-TestHooks` builds use a separate fixture key.
 - Added exact failure stages, report fallback, blocked launch preserving app/settings,
   temporary-directory acceptance/rejection and emitted char[] overload verification.
 - Microsoft reference-assembly compilation establishes the API surface; Wine runtime

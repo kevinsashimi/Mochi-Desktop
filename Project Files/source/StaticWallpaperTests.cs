@@ -86,6 +86,14 @@ namespace MochiDesktop {
                 found=WallpaperNative.FindExistingHost(root);
                 Check(found!=null && found.Parent==child && found.Icons==view && !found.Layered,"blank child behind icon view must be selected");
                 Check(WallpaperNative.HostAlive(found),"valid desktop host rejected");
+                WallpaperNative.SetWindowPos(view,IntPtr.Zero,0,0,0,0,0x1|0x2|0x4|0x10|0x80);
+                Check(WallpaperNative.HostAlive(found),"hidden desktop icons incorrectly invalidated the wallpaper host");
+                WallpaperNative.SetWindowPos(view,IntPtr.Zero,0,0,0,0,0x1|0x2|0x4|0x10|0x40);
+                Check(found.ProcessId==WallpaperNative.ProcessId(root) && found.IconsClass=="SHELLDLL_DefView" && found.WallpaperClass=="WorkerW","desktop identity was not captured");
+                DesktopWallpaperHost wrongProcess=new DesktopWallpaperHost(found.Parent,found.Icons,found.Wallpaper,found.Layered,found.ProcessId+1,found.ParentClass,found.IconsClass,found.WallpaperClass);
+                Check(!WallpaperNative.HostAlive(wrongProcess),"reused handles from another process were accepted");
+                DesktopWallpaperHost wrongClass=new DesktopWallpaperHost(found.Parent,found.Icons,found.Wallpaper,found.Layered,found.ProcessId,found.ParentClass,found.IconsClass,"NotWorkerW");
+                Check(!WallpaperNative.HostAlive(wrongClass),"reused handle with a different class was accepted");
                 WallpaperNative.SetWindowLong(root,-20,WallpaperNative.GetWindowLong(root,-20)|0x00200000);
                 Check(!WallpaperNative.HostAlive(found),"switch to raised desktop must rebuild attachment");
                 sibling=Fixture("WorkerW",IntPtr.Zero);
@@ -149,6 +157,9 @@ namespace MochiDesktop {
                 DesktopWallpaperHost host=new DesktopWallpaperHost(parent.Handle,icons.Handle,background.Handle,true);
                 using(StaticWallpaperSurface surface=new StaticWallpaperSurface(parent.Handle,new Rectangle(parent.PointToScreen(Point.Empty),size),art,true,icons.Handle,true)){
                     canvas=surface.Handle;container=surface.DesktopHandle;surface.EnsurePlacement(host);
+                    Check(surface.Matches(host),"wallpaper-owned class/process hierarchy was not recognized");
+                    DesktopWallpaperHost changed=new DesktopWallpaperHost(background.Handle,icons.Handle,background.Handle,true);
+                    Check(!surface.Matches(changed),"wallpaper accepted a changed desktop parent");
                     Check(container!=canvas && GetParent(canvas)==container && GetParent(container)==parent.Handle,"layered wallpaper hierarchy");
                     Check((GetWindowLong(container,-20)&0x80000)!=0,"raised desktop needs layered presentation");
                     Check((GetClassLong(container,-26)&0x20)==0,"layered window must not use CS_OWNDC");

@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Xml.Linq;
@@ -16,9 +17,35 @@ namespace MochiDesktop {
             try { action(); } catch { return; }
             throw new Exception("Updates accepted " + message);
         }
+        static byte[] ProductionSignatureVector(){
+            const string hash="abababababababababababababababababababababababababababababababab";
+            const string signature="U/ok3dIYyFKayWV9plP7GhOmithClPtC1QFv1bMqlzJXX2Li783WUf/U1YPlg2M51zk8IpNfkEyynoucIbHFvXtB3R/9mULKTTLefktxj9S3HhZZOuijkh4+MpnyAFjOXoVDfMqr/sVY9GgQ/Xlcw1U2nq9eeaIPTpghSGD3Z8nkrPWYmBK3ahqZhnEZqOOnRTEI1lyBk/uSaILGk09M0rRCewL+ztwFpXVPLMwkQ1olMWibJe9q7/Z6HZGRXbVOSfQ/et2F2SR6MPXP/mPgF8+LQczmiiAk9MU2uUHrrR6emg5i+6CusxcUaXv9LkJUY+NkzzQCcVyWqRJ36ejQtnww1yHfyw8HXrbQClyk9mPonnPynOUmSvUZFdZsseSPYnoiDYSrwxTmmbbKIbXb9segVz0633VuekgcfqOSKeTRPOyZRG7InJIYhGxyNMPqeX6FcSEnkVw9BnVpP8Ouvjs4QYtEFIL0orZ4wjGZmqv8vQ2oH+b33hWrSqOViSjnbYkVK/5IsArrH3gWmxbKXXHa/yxP24fhhLU9oPtLelMq4Ri4qUbDXLA0AeqFF/rYnCSTAXAzHv8K8YIwjZ5MJojwRciwW8uA1ZbJnpO46A1NddR96zrZFdK82rTLJxwXbYT6H5N4Ko+p/WEjR79Dg7yneHMYp6hmgOXyWs5aHW0=";
+            return Encoding.UTF8.GetBytes(new XElement("MochiUpdate",new XElement("Version","9.8.7.6"),
+                new XElement("File","Mochi.exe"),new XElement("Size","123456"),new XElement("Sha256",hash),new XElement("Signature",signature)).ToString());
+        }
         static byte[] Manifest(Version version, string hash, long size) {
+#if MOCHI_TESTS
+            RSAParameters key = new RSAParameters {
+                Modulus = Convert.FromBase64String("y9Vdm+trR3h+PFk7keNrfC5TVkTW3RHFM7E+IZGD1NAZMiKh5Bcpj28rCWyo2nrpnNFrECAT7JRShtk0CtEPrwH/QDO5cZdLDgNpD7++nr+Uf2o8d/husHubz4pU3oAacjs5799qNVwya432FzbttVvApvmXQ9kjkcCyTt4S4TBhw0S5yZNfa7xgQhQlwHiECAoZ559mngQIyXBoOkTfs47oD1uNy+Aew4JBcfGNPZW70vKNhiUvGbkwdsKKAX/gIPo+141z4XzV0qDm8LwhPoa5wBBrp1qY3f/7zTLhNiqkj3wlWNIx//wIAZuAj0urgipjMyi5e6La3I2ZH+BjmQ=="),
+                Exponent = Convert.FromBase64String("AQAB"),
+                P = Convert.FromBase64String("9ey+GAssZ5Q3aJR3ulwMmlleMn56P8xM0fjClspeteF67tJV/dXM1tEiaKqJuANzXEz/0RX91hSV3+K0RcptWYTa1WmvJf+fGyrDK9QnMqkfQ7PYTwz/1c9KRbY/BHDEEJoBa/Rgk2KNYA+28CDAdHAeo4r/7ZTy+gXF13a+rsE="),
+                Q = Convert.FromBase64String("1C8rbrMlrxdE3dYAcp+hxQ1x7oX8zNJNREx6kIbcxhzwpWCSmDQCQa64IC8AvAIghpR30FOlyh6kn5D0+AYxa9FGRJm2t8WBL6st19rE8LR9tq5TUpkjMtKrL3pu4BbiH/AXsQqtTuL312vhW0/4X14UU7PDsMo/3C0KZLvQwtk="),
+                DP = Convert.FromBase64String("xdJwf4rNZ2yUva1gOiq9gJOO8HNJB3Th/q1qaj3Tvd7pMp9DyPJo2gxU73jvW3R7Ia5Wwew8yi64+OW2OcXB/JagKbffymM7q3DUmrcH6PqeSamrwLsmOOmMR1N4kavcK7aWmi50WVqXesRpVfQinAdsvgWcJZMBeRmXseC1NoE="),
+                DQ = Convert.FromBase64String("l630jVjxSl4G89HkVgw5N0UqOcl8cuqvI3DMeP5/WfwcJwyHHtim+E8u/oq7KqsWlz4Q/FKfhIItSof0Jk0/DQT4B1ge3vYIKIxk5BZWjH9qEqpBlB02pUEl8HXERtr04MHgHcY1J9xmMY/D9GOReJMnUsKB1KJvzjRAZsxAKtk="),
+                InverseQ = Convert.FromBase64String("FsCg53vl0NX+Afw+2eGSbV3cva07GKlXrLB2SAL9rwHwIFOvDktM5ALHvsSuQyM0IIe+RTkkEwA3LlJPnYfSLD2PciY7Pih5aQ2QXhybB3EQpEc1iq+WS0GLuKo50mhM7ds/FSgBjT/isPUzZIrTXaoVxLJl1SSTTNb0yRvCubQ="),
+                D = Convert.FromBase64String("ApxSGXsBid3s1PpKGWddoy6nNdfGHjj56vxySKUH2JgNOI+JvgV/bGU+un1MKNcx6oaincdhZfJs36oEwP42OpY2lhSLg51N0mlABVn996PJw7uBOIKjrUo5/8Wcamie3hds2aoFftc2VJsR+7BiCUR6clEIS0/KxTU/+2Nb/8sUWWoBPHvKsh6oDhNC84dIwpFe4w7rXyp01xVed5Wdk653Bp/o1TEZYNCzPC123NkmNYqO31sX8NMO0pS2fXpGmPJAxuBWa3jSdWPNz/QZYvHvd+UEItGavPAgEv1fjJ8o6sA+1UJ+yGs45ryAB8sW7OjGds/8McgsAR4KJIZ4wQ==")
+            };
+            byte[] signature;
+            using (RSACryptoServiceProvider rsa = new RSACryptoServiceProvider()) {
+                rsa.PersistKeyInCsp = false; rsa.ImportParameters(key);
+                signature = rsa.SignData(UpdateInfo.Canonical(version, hash, size), CryptoConfig.MapNameToOID("SHA256"));
+            }
             return Encoding.UTF8.GetBytes(new XElement("MochiUpdate", new XElement("Version", version),
-                new XElement("File", "Mochi.exe"), new XElement("Size", size), new XElement("Sha256", hash)).ToString());
+                new XElement("File", "Mochi.exe"), new XElement("Size", size), new XElement("Sha256", hash),
+                new XElement("Signature", Convert.ToBase64String(signature))).ToString());
+#else
+            throw new InvalidOperationException("Update fixtures require a MOCHI_TESTS build.");
+#endif
         }
         sealed class FakeTransport : IUpdateTransport {
             public byte[] Metadata, Binary;
@@ -126,8 +153,9 @@ namespace MochiDesktop {
                     });
                 }, "Starting the updater");
                 Check(launched && UpdateService.Hash(target) == oldHash && File.ReadAllText(settings) == "keep settings", "failed launch modified the installed app or preferences");
-                string message = UpdateDiagnostics.Report(failure, "Preparing", target);
-                string report = File.ReadAllText(Path.Combine(preferences, "update-error.txt"));
+                string diagnosticFolder = Path.Combine(root, "local diagnostics");
+                string message = UpdateDiagnostics.Report(failure, "Preparing", target, new[] { diagnosticFolder });
+                string report = File.ReadAllText(Path.Combine(diagnosticFolder, "update-error.txt"));
                 Check(message.Contains("Starting the updater") && message.Contains("Windows error 5") && message.Contains("Win32Exception") && message.Contains("0x"), "failure dialog hid its stage or native code");
                 Check(report.Contains("Step: Starting the updater") && report.Contains("Update target: " + target) && report.Contains("Access is denied"), "persistent report lost original failure details");
                 string blocked = Path.Combine(root, "blocked-log-folder"); File.WriteAllText(blocked, "not a directory");
@@ -150,6 +178,8 @@ namespace MochiDesktop {
             } finally { UpdateInstaller.Cleanup(download); }
         }
         public static int Run(string reportPath) {
+            string previousElevation = Environment.GetEnvironmentVariable("MOCHI_TEST_ELEVATION");
+            Environment.SetEnvironmentVariable("MOCHI_TEST_ELEVATION", "0");
             string root = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(reportPath)), "update-fixtures-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(root);
             List<string> results = new List<string>();
@@ -170,6 +200,16 @@ namespace MochiDesktop {
                     "checking downloaded an executable before consent");
                 Check(network.Requests[1].Contains("/" + commit + "/Project%20Files/update.xml"), "manifest was not pinned to commit");
                 Check(UpdateInfo.Parse(Manifest(new Version(1, 10, 0), hash, size), commit).Version > new Version(1, 9, 0, 0), "version comparison is not numeric");
+                Check(UpdateInfo.Parse(ProductionSignatureVector(),commit).Version==new Version(9,8,7,6),
+                    "production pinned-key signature vector was rejected");
+                byte[] signed = Manifest(current, hash, size);
+                XElement tampered = XElement.Parse(Encoding.UTF8.GetString(signed));
+                tampered.Element("Size").Value = (size + 1).ToString();
+                Reject(delegate { UpdateInfo.Parse(Encoding.UTF8.GetBytes(tampered.ToString()), commit); }, "tampered signed metadata");
+                tampered = XElement.Parse(Encoding.UTF8.GetString(signed)); tampered.Element("Signature").Remove();
+                Reject(delegate { UpdateInfo.Parse(Encoding.UTF8.GetBytes(tampered.ToString()), commit); }, "unsigned metadata");
+                tampered = XElement.Parse(Encoding.UTF8.GetString(signed)); tampered.Element("Signature").Value = "not-base64";
+                Reject(delegate { UpdateInfo.Parse(Encoding.UTF8.GetBytes(tampered.ToString()), commit); }, "malformed signature");
                 Reject(delegate { UpdateInfo.Parse(Encoding.UTF8.GetBytes("<bad>"), commit); }, "malformed manifest");
                 Reject(delegate { UpdateInfo.Parse(Manifest(current, "invalid", size), commit); }, "invalid hash");
                 Reject(delegate { UpdateInfo.Parse(Manifest(current, hash, UpdateInfo.MaximumSize + 1), commit); }, "oversize update");
@@ -183,7 +223,7 @@ namespace MochiDesktop {
                     Reject(delegate { service.Check(current, cancellation.Token); }, "cancelled check");
                     Reject(delegate { service.Download(update, cancellation.Token); }, "cancelled download");
                 }
-                results.Add("PASS: newer/same/older versions; numeric ordering; malformed/oversize metadata; offline and cancellation; no executable download during checks.");
+                results.Add("PASS: pinned publisher signatures; tampered, missing and malformed signatures rejected; newer/same/older versions; numeric ordering; malformed/oversize metadata; offline and cancellation; no executable download during checks.");
 
                 string download = service.Download(update, CancellationToken.None); downloads.Add(download);
                 Check(network.Requests[network.Requests.Count - 1].EndsWith("/" + commit + "/Mochi.exe"), "download is not only the commit-pinned Mochi.exe");
@@ -205,6 +245,20 @@ namespace MochiDesktop {
                 string untouched = Path.Combine(targetFolder, "Project Files", "notes.txt");
                 File.WriteAllText(untouched, "keep me");
                 InstallRequest request = new InstallRequest { Target = target, OldHash = originalHash, Update = update };
+                string handoffFolder = Path.Combine(root, "signed handoff"); Directory.CreateDirectory(handoffFolder);
+                request.ParentId = Process.GetCurrentProcess().Id; request.ParentStarted = Process.GetCurrentProcess().StartTime.ToUniversalTime().Ticks;
+                request.Save(handoffFolder);
+                Check(InstallRequest.Load(handoffFolder).Update.Signature == update.Signature, "signed handoff did not round trip");
+                XElement alteredHandoff = XElement.Load(Path.Combine(handoffFolder, "install.xml"));
+                alteredHandoff.Element("Size").Value = (update.Size + 1).ToString(); alteredHandoff.Save(Path.Combine(handoffFolder, "install.xml"));
+                Reject(delegate { InstallRequest.Load(handoffFolder); }, "tampered helper handoff");
+                bool elevatedLaunch = false; Exception elevatedHelper = null;
+                Environment.SetEnvironmentVariable("MOCHI_TEST_ELEVATION", "1");
+                FailureAt(delegate { UpdateInstaller.PrepareAndStart(download, update, target, delegate { elevatedLaunch = true; }); }, "Checking updater privileges");
+                Check(!elevatedLaunch, "elevated preparation launched the temporary helper");
+                Check(UpdateInstaller.RunHelper(download, delegate(Exception error,string ignored) { elevatedHelper = error; }) == 1 &&
+                    UpdateDiagnostics.Stage(elevatedHelper, "") == "Checking updater privileges", "elevated helper execution was not refused");
+                Environment.SetEnvironmentVariable("MOCHI_TEST_ELEVATION", "0");
                 bool restarted = false;
                 UpdateInstaller.ReplaceAndRestart(download, request, delegate(string app, string args) {
                     Check(app == target && args.StartsWith("--cleanup-update "), "bad restart");
@@ -237,7 +291,7 @@ namespace MochiDesktop {
                     InstallRequest integration = new InstallRequest {
                         Target = oldApp, OldHash = UpdateService.Hash(oldApp), ParentId = parent.Id,
                         ParentStarted = parent.StartTime.ToUniversalTime().Ticks,
-                        Update = new UpdateInfo { Version = new Version(current.Major + 1, 0, 0, 0), Size = new FileInfo(future).Length, Sha256 = UpdateService.Hash(future) }
+                        Update = UpdateInfo.Parse(Manifest(new Version(current.Major + 1, 0, 0, 0), UpdateService.Hash(future), new FileInfo(future).Length), commit)
                     };
                     integration.Save(helperDownload);
                     using (Process helper = Process.Start(new ProcessStartInfo(Path.Combine(helperDownload, "Mochi.updater.exe"), "--apply-update " + UpdateInstaller.Quote(helperDownload)) {
@@ -252,7 +306,7 @@ namespace MochiDesktop {
                 Check(File.Exists(Path.Combine(futureFolder, "restarted.txt")), "helper did not restart the new executable");
                 results.Add("PASS: real helper waits for old process, replaces Mochi.exe, and launches the new executable from paths containing spaces.");
                 VerifyDiagnostics(root, self, update);
-                results.Add("PASS: exact download, validation, preparation and launch failure stages; native error codes; persistent original-folder report and fallback; cancellation stays silent; blocked helper leaves app and settings intact.");
+                results.Add("PASS: exact download, validation, preparation and launch failure stages; native error codes; LocalAppData-style diagnostic report and fallback; cancellation stays silent; blocked helper leaves app and settings intact.");
                 VerifyFrameworkCompatibility(Assembly.GetExecutingAssembly());
                 results.Add("PASS: emitted .NET Framework-compatible TrimEnd(char[]) references; valid temporary updater directories and trailing separators; malformed and nested directories rejected.");
                 Companion.VerifyUpdateMenu();
@@ -265,6 +319,7 @@ namespace MochiDesktop {
                 return 1;
             } finally {
                 foreach (string directory in downloads) UpdateInstaller.Cleanup(directory);
+                Environment.SetEnvironmentVariable("MOCHI_TEST_ELEVATION", previousElevation);
             }
         }
     }

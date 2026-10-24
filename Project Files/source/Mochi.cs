@@ -6,14 +6,19 @@ using System.Drawing.Imaging;
 using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Security.AccessControl;
+using System.Security.Cryptography;
+using System.Security.Principal;
+using System.Text;
 using System.Threading;
 using System.Windows.Forms;
+using System.Xml;
 using System.Xml.Linq;
 using System.Collections.Generic;
 
 namespace MochiDesktop {
     static class Program {
-        public static bool TestUi;
+        public static bool TestUi=false;
         public static bool RestartedAfterUpdate;
         public static EventWaitHandle SettingsRequest;
         public static string DataDirectory {
@@ -22,12 +27,46 @@ namespace MochiDesktop {
                 return Directory.Exists(projectFiles)?projectFiles:AppDomain.CurrentDomain.BaseDirectory;
             }
         }
+        public static string DiagnosticsDirectory {
+            get {
+                string path=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"Mochi");
+                Directory.CreateDirectory(path);return path;
+            }
+        }
+        internal static string InstanceScope(string executablePath,string userIdentity) {
+            string value=(userIdentity??"")+"\n"+Path.GetFullPath(executablePath).ToUpperInvariant();
+            using(SHA256 hash=SHA256.Create()){
+                byte[] digest=hash.ComputeHash(Encoding.UTF8.GetBytes(value));
+                StringBuilder text=new StringBuilder(32);for(int i=0;i<16;i++)text.Append(digest[i].ToString("x2"));return text.ToString();
+            }
+        }
+        static SecurityIdentifier CurrentUserSid(){
+            using(WindowsIdentity identity=WindowsIdentity.GetCurrent()){
+                if(identity==null || identity.User==null)throw new InvalidOperationException("Windows could not identify the current user for startup coordination.");
+                return identity.User;
+            }
+        }
+        static MutexSecurity MutexAccess(SecurityIdentifier user){
+            MutexSecurity security=new MutexSecurity();security.SetAccessRuleProtection(true,false);
+            security.AddAccessRule(new MutexAccessRule(user,MutexRights.FullControl,AccessControlType.Allow));return security;
+        }
+        static EventWaitHandleSecurity EventAccess(SecurityIdentifier user){
+            EventWaitHandleSecurity security=new EventWaitHandleSecurity();security.SetAccessRuleProtection(true,false);
+            security.AddAccessRule(new EventWaitHandleAccessRule(user,EventWaitHandleRights.FullControl,AccessControlType.Allow));return security;
+        }
+#if MOCHI_TESTS
+        // The package verifier rejects this marker in public-release artifacts.
+        internal static readonly string TestHookMarker="Mochi.TestHooks.Enabled";
+#endif
         [STAThread] static int Main(string[] args) {
             if (args.Length == 2 && args[0] == "--apply-update") return UpdateInstaller.RunHelper(args[1]);
+            bool diagnosticsAllowed=false;
             try {
                 Native.SetProcessDPIAware();
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
+#if MOCHI_TESTS
+                if(TestHookMarker.Length==0)throw new InvalidOperationException("Test hook marker is missing.");
                 if (args.Length == 2 && args[0] == "--update-self-test") return UpdateTests.Run(args[1]);
                 if (args.Length == 2 && args[0] == "--playful-self-test") return PlayfulTests.Run(args[1]);
                 if (args.Length == 2 && args[0] == "--wallpaper-preview") return StaticWallpaperTests.Preview(args[1]);
@@ -55,21 +94,33 @@ namespace MochiDesktop {
                     return 0;
                 }
                 TestUi=Array.IndexOf(args,"--test-ui")>=0;
+#endif
+                if(UpdateInstaller.IsElevated()){
+                    MessageBox.Show("Mochi does not need administrator access. Close this copy and open Mochi normally.",
+                        "Mochi Desktop",MessageBoxButtons.OK,MessageBoxIcon.Warning);return 1;
+                }
+                diagnosticsAllowed=true;
                 bool openSettings=Array.IndexOf(args,"--settings")>=0;
-                bool first;
-                using (Mutex mutex = new Mutex(true, "Local\\MochiDesktopCompanion", out first)) {
-                    if (!first) { using(EventWaitHandle request=EventWaitHandle.OpenExisting("Local\\MochiDesktopSettings"))request.Set(); return 0; }
-                    using(SettingsRequest=new EventWaitHandle(false,EventResetMode.AutoReset,"Local\\MochiDesktopSettings")) {
+                SecurityIdentifier user=CurrentUserSid();string scope=InstanceScope(Application.ExecutablePath,user.Value);
+                bool eventCreated,mutexCreated,ownsMutex=false;
+                // Create the request event before publishing the mutex. A second
+                // launch can always signal a fully initialized primary instance.
+                using(SettingsRequest=new EventWaitHandle(false,EventResetMode.AutoReset,"Local\\MochiDesktopSettings-"+scope,
+                    out eventCreated,EventAccess(user)))
+                using(Mutex mutex=new Mutex(true,"Local\\MochiDesktopCompanion-"+scope,out mutexCreated,MutexAccess(user))){
+                    ownsMutex=mutexCreated;
+                    if(!ownsMutex)try{ownsMutex=mutex.WaitOne(0);}catch(AbandonedMutexException){ownsMutex=true;}
+                    if(!ownsMutex){SettingsRequest.Set();return 0;}
+                    try{
                         RestartedAfterUpdate=args.Length==2 && args[0]=="--cleanup-update";
                         if(RestartedAfterUpdate) UpdateInstaller.CleanupAfterRestart(args[1]);
                         if(openSettings)SettingsRequest.Set();
                         Application.Run(new Companion());
-                    }
-                    mutex.ReleaseMutex();
+                    }finally{mutex.ReleaseMutex();}
                 }
                 return 0;
             } catch(Exception ex) {
-                try { File.WriteAllText(Path.Combine(DataDirectory,"error.log"), ex.ToString()); } catch {}
+                if(diagnosticsAllowed)try { File.WriteAllText(Path.Combine(DiagnosticsDirectory,"error.log"), ex.ToString()); } catch {}
                 MessageBox.Show("Mochi couldn't start: " + ex.Message, "Mochi Desktop", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return 1;
             }
@@ -81,11 +132,15 @@ namespace MochiDesktop {
         public bool Roam = true, PlayfulMode, StaticWallpaper;
         public string LastReleaseNotesVersion = "";
         public bool LoadedFromFile { get; private set; }
+        internal const long MaximumCharacters=65536;
         static string FilePath { get { return Path.Combine(Program.DataDirectory,"settings.xml"); } }
         public static Preferences Load(string filePath=null) {
             Preferences p = new Preferences();
             try {
-                XElement x = XElement.Load(filePath??FilePath);
+                XmlReaderSettings settings=new XmlReaderSettings{DtdProcessing=DtdProcessing.Prohibit,XmlResolver=null,MaxCharactersInDocument=MaximumCharacters};
+                XElement x;using(FileStream stream=new FileStream(filePath??FilePath,FileMode.Open,FileAccess.Read,FileShare.Read))
+                using(XmlReader reader=XmlReader.Create(stream,settings))x=XElement.Load(reader);
+                if(x.Name!="Mochi")return p;
                 p.LoadedFromFile=true;
                 p.LastReleaseNotesVersion=(string)x.Element("LastReleaseNotesVersion")??"";
                 p.Size = (int?)x.Element("Size") ?? 176;
@@ -104,13 +159,17 @@ namespace MochiDesktop {
             return p;
         }
         public void Save(string filePath=null) {
+            string temporary=null;
             try {
-                string target=filePath??FilePath;
+                string target=Path.GetFullPath(filePath??FilePath),directory=Path.GetDirectoryName(target);
+                temporary=Path.Combine(directory,"."+Path.GetFileName(target)+"."+Guid.NewGuid().ToString("N")+".tmp");
                 XElement x = new XElement("Mochi",new XElement("Size",Size),new XElement("Frequency",Frequency),
                     new XElement("X",X),new XElement("Y",Y),new XElement("Roam",Roam),new XElement("PlayfulMode",PlayfulMode),new XElement("StaticWallpaper",StaticWallpaper),new XElement("NextFeed",NextFeed),new XElement("NextPet",NextPet),new XElement("NextPlay",NextPlay),new XElement("LastReleaseNotesVersion",LastReleaseNotesVersion));
-                x.Save(target + ".tmp");
-                if(File.Exists(target)) File.Replace(target+".tmp",target,null); else File.Move(target+".tmp",target);
+                using(FileStream stream=new FileStream(temporary,FileMode.CreateNew,FileAccess.Write,FileShare.None))x.Save(stream);
+                if(File.Exists(target))File.Replace(temporary,target,null);else File.Move(temporary,target);
+                temporary=null;
             } catch { /* A read-only portable folder must not prevent quitting. */ }
+            finally{try{if(temporary!=null && File.Exists(temporary))File.Delete(temporary);}catch{}}
         }
     }
 
@@ -270,8 +329,10 @@ namespace MochiDesktop {
         readonly GazeMotion gaze=new GazeMotion(); readonly bool simulation;
         readonly GazeMotion swimGaze=new GazeMotion();readonly EdgeWatch edgeWatch=new EdgeWatch();
         SwimPath swimPath;PointF swimFraction;
-        double simulatedTime,nextBackgroundCheck; bool resourcesDisposed;
+        internal const double NativeRetryDelay=.25;
+        double simulatedTime,nextBackgroundCheck,nextRenderAttempt; bool resourcesDisposed;
         Action<IntPtr> backgroundPlacement=Native.KeepBehindApps;
+        Action<IntPtr,Bitmap,Point,byte> bitmapPresentation=Native.SetBitmap;
         readonly Stopwatch clock=Stopwatch.StartNew(); readonly System.Windows.Forms.Timer timer=new System.Windows.Forms.Timer();
         NotifyIcon tray; ContextMenuStrip menu; ToolStripMenuItem pauseItem; Icon trayIcon; Bitmap canvas;
         int row,frame; double actionStart,actionUntil,nextSwim,bubbleUntil,travelStart,travelDuration;
@@ -525,9 +586,12 @@ namespace MochiDesktop {
                 row<9?Renderer.DrawAnimated(atlas,row,Now-actionStart,prefs.Size,bubble,faceRight && row!=1 && row!=2):Renderer.Draw(atlas,row,frame,prefs.Size,bubble);
         }
         void Render(){
-            if(!IsHandleCreated)return;
+            if(!IsHandleCreated || Now<nextRenderAttempt)return;
             Bitmap next=RenderFrame();
-            try{Native.SetBitmap(Handle,next,Location);}catch{next.Dispose();throw;}
+            try{bitmapPresentation(Handle,next,Location,255);}
+            catch(System.ComponentModel.Win32Exception){next.Dispose();nextRenderAttempt=Now+NativeRetryDelay;return;}
+            catch{next.Dispose();throw;}
+            nextRenderAttempt=0;
             if(canvas!=null)canvas.Dispose();canvas=next;
         }
         void DisplayChanged(object sender,EventArgs e){if(IsDisposed)return;try{BeginInvoke((Action)delegate{StopManualSwimming();CancelPlayful();StopPicking();swimming=false;guidedSwim=false;Location=Motion.Clamp(Location,Size,Screen.FromRectangle(Bounds).WorkingArea);Schedule();SchedulePlayful();});}catch(InvalidOperationException){} }
@@ -946,6 +1010,10 @@ namespace MochiDesktop {
                     throw new Exception("Updater tests failed; see update-test-results.txt.");
                 if(PlayfulTests.Run(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(path)),"playful-test-results.txt"))!=0)
                     throw new Exception("Playful Mode tests failed; see playful-test-results.txt.");
+#if MOCHI_TESTS
+                if(SecurityHardeningTests.Run(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(path)),"security-test-results.txt"))!=0)
+                    throw new Exception("Security hardening tests failed; see security-test-results.txt.");
+#endif
                 Check(Motion.Direction(0,-1)==0,"up cardinal");Check(Motion.Direction(1,0)==4,"right cardinal");Check(Motion.Direction(0,1)==8,"down cardinal");Check(Motion.Direction(-1,0)==12,"left cardinal");
                 for(int i=0;i<16;i++){double a=i*Math.PI/8;Check(Motion.Direction(Math.Sin(a),-Math.Cos(a))==i,"direction mapping "+i);}
                 Rectangle monitor=new Rectangle(-1920,-100,1920,1080);Size size=new Size(260,280);
