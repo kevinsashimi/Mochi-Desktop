@@ -1,21 +1,126 @@
 using System;
 using System.ComponentModel;
 using System.IO;
+using System.Drawing;
+using System.Runtime.InteropServices;
+using System.Windows.Forms;
 
 namespace MochiDesktop {
+    // Native group-placement fixture; production cleanup uses the companion alone.
+    sealed class BackgroundTestWindow : NativeWindow,IDisposable {
+        public BackgroundTestWindow(){CreateHandle(new CreateParams{Caption="Mochi placement test",ClassName="STATIC",Style=unchecked((int)0x80000000),ExStyle=0x80000|0x80|0x20|0x08000000,Width=1,Height=1});}
+        public void Present(Bitmap frame,Point position){Native.SetBitmap(Handle,frame,position);}
+        public void Hide(){Native.ShowWindow(Handle,0);}
+        public void Dispose(){if(Handle!=IntPtr.Zero)DestroyHandle();}
+        protected override void WndProc(ref Message m){Native.PreserveBackgroundOrder(ref m);base.WndProc(ref m);}
+    }
+
     static class BackgroundPlacementTests {
         internal static void Check(bool condition,string message){if(!condition)throw new Exception("Background placement: "+message);}
         public static int Run(string path){
             try{
                 Companion.VerifyBackgroundPlacement();
                 Companion.VerifyNativePresentationRecovery();
+                Companion.VerifyBackgroundRefresh();
+                VerifyWindowGroup();VerifyEventSubscription();VerifyTransientDesktopMenus();
                 File.WriteAllText(path,
                     "PASS: startup access-denied failure does not interrupt the welcome, rendering or timer; periodic invalid-window failure retries and recovers.\r\n"+
                     "PASS: one-second retry cadence after success and failure; sustained failures and long timer gaps do not cause a busy loop; manual mode suspends background placement.\r\n"+
                     "PASS: missing, closing and disposed handles are skipped; unrelated exceptions remain visible; real native placement failure is contained; successful native placement preserves bounds, non-topmost behavior and focus.\r\n"+
-                    "PASS: transient bitmap, Manual guide, and wake placement failures preserve the last frame, use bounded retries, and recover; unrelated failures remain visible.\r\n");
+                    "PASS: transient bitmap, Manual guide, and wake placement failures preserve the last frame, use bounded retries, and recover; unrelated failures remain visible.\r\n"+
+                    "PASS: shell/menu refresh requests restore placement on the next tick, coalesce bursts, respect failure backoff and Manual mode.\r\n"+
+                    "PASS: native shell/menu event subscription receives notifications and releases callbacks on disposal.\r\n"+
+                    "PASS: transient desktop menus and hidden utility windows do not move or hide a correctly placed scene; delayed shell changes are rechecked throughout menu settling.\r\n"+
+                    "PASS: native grouped placement preserves bin/pet/cargo order, bounds, focus and non-topmost styles through repeated placement and foreground changes.\r\n");
                 return 0;
             }catch(Exception error){File.WriteAllText(path,"FAIL: "+error);return 1;}
+        }
+        [DllImport("user32.dll")] static extern IntPtr GetWindow(IntPtr window,uint command);
+        [DllImport("user32.dll")] static extern int GetWindowLong(IntPtr window,int index);
+        [DllImport("user32.dll",CharSet=CharSet.Unicode)] static extern int GetWindowText(IntPtr window,System.Text.StringBuilder text,int count);
+        static string WindowOrder(IntPtr first){
+            string result="";int n=0;
+            for(IntPtr w=GetWindow(first,0);w!=IntPtr.Zero && n++<30;w=GetWindow(w,2)){
+                System.Text.StringBuilder title=new System.Text.StringBuilder(256);GetWindowText(w,title,256);
+                result+=" / "+w+" owner="+GetWindow(w,4)+" style="+GetWindowLong(w,-20)+" "+title;
+            }return result;
+        }
+        [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr window);
+        static IntPtr NextVisible(IntPtr window){
+            do{window=GetWindow(window,2);}while(window!=IntPtr.Zero && !IsWindowVisible(window));return window;
+        }
+        [DllImport("user32.dll")] static extern void NotifyWinEvent(uint kind,IntPtr window,int objectId,int childId);
+        static void VerifyEventSubscription(){
+            int calls=0;
+            using(Form app=new Form())using(Native.BackgroundEvents events=new Native.BackgroundEvents(delegate{calls++;})){
+                IntPtr handle=app.Handle;NotifyWinEvent(7,handle,0,0);
+                for(int i=0;i<100 && calls==0;i++){Application.DoEvents();System.Threading.Thread.Sleep(2);}
+                Check(calls>0,"native menu-end event did not request refresh");
+                events.Dispose();int before=calls;NotifyWinEvent(7,handle,0,0);
+                for(int i=0;i<10;i++){Application.DoEvents();System.Threading.Thread.Sleep(2);}
+                Check(calls==before,"disposed event hooks still called back");
+            }
+        }
+        sealed class PlacementProbe : System.Windows.Forms.NativeWindow,IDisposable {
+            public int Moves;
+            public PlacementProbe(string kind="STATIC"){
+                IntPtr window=WallpaperNative.CreateWindowEx(0x80|0x08000000,kind,"Placement probe",unchecked((int)0x80000000),
+                    10,10,32,32,IntPtr.Zero,IntPtr.Zero,WallpaperNative.GetModuleHandle(null),IntPtr.Zero);
+                if(window==IntPtr.Zero)throw new Win32Exception(Marshal.GetLastWin32Error());AssignHandle(window);
+            }
+            protected override void WndProc(ref System.Windows.Forms.Message message){
+                if(message.Msg==0x46 && message.LParam!=IntPtr.Zero){
+                    Native.WindowPosition p=(Native.WindowPosition)Marshal.PtrToStructure(message.LParam,typeof(Native.WindowPosition));
+                    if((p.flags&4)==0)Moves++;
+                }
+                base.WndProc(ref message);
+            }
+            public void Dispose(){IntPtr window=Handle;if(window!=IntPtr.Zero){ReleaseHandle();WallpaperNative.DestroyWindow(window);}}
+        }
+        static void VerifyTransientDesktopMenus(){
+            using(Form desktop=new Form{Text="Desktop menu fixture"})using(Form app=new Form{Text="Normal app fixture"})
+            using(PlacementProbe back=new PlacementProbe())using(PlacementProbe front=new PlacementProbe())
+            using(PlacementProbe menu=new PlacementProbe("#32768"))using(PlacementProbe hidden=new PlacementProbe()){
+                desktop.Show();app.Show();Native.KeepBackgroundGroupAt(desktop.Handle,back.Handle,front.Handle);
+                int backMoves=back.Moves,frontMoves=front.Moves;
+                for(int n=0;n<20;n++){
+                    // Explorer's native context menu can temporarily sit just above
+                    // the desktop, or between the lowest app and the companion.
+                    WallpaperNative.SetWindowPos(menu.Handle,n%2==0?back.Handle:app.Handle,0,0,0,0,0x53);
+                    WallpaperNative.SetWindowPos(hidden.Handle,back.Handle,0,0,0,0,0x13);
+                    Native.KeepBackgroundGroupAt(desktop.Handle,back.Handle,front.Handle);
+                    Check(IsWindowVisible(back.Handle) && IsWindowVisible(front.Handle),"menu hid the scene");
+                    Native.ShowWindow(menu.Handle,0);Native.KeepBackgroundGroupAt(desktop.Handle,back.Handle,front.Handle);
+                }
+                Check(back.Moves==backMoves && front.Moves==frontMoves,"menu churn unnecessarily repositioned the scene");
+            }
+        }
+        static void VerifyWindowGroup(){
+            using(Form desktop=new Form{Text="Desktop placement fixture"})
+            using(Form app=new Form{Text="Foreground placement fixture"})
+            using(Companion pet=new Companion(true))
+            using(BackgroundTestWindow bin=new BackgroundTestWindow())using(BackgroundTestWindow cargo=new BackgroundTestWindow())
+            using(Bitmap pixel=new Bitmap(32,32)){
+                desktop.Show();app.Show();app.Activate();
+                IntPtr handle=pet.Handle;using(Bitmap frame=new Bitmap(pet.Width,pet.Height))Native.SetBitmap(handle,frame,pet.Location);
+                using(Graphics g=Graphics.FromImage(pixel))g.Clear(Color.Turquoise);
+                bin.Present(pixel,new Point(200,200));cargo.Present(pixel,new Point(240,200));
+                Rectangle bounds=pet.Bounds;IntPtr focus=Native.GetForegroundWindow();
+                for(int i=0;i<20;i++){
+                    Native.KeepBackgroundGroupAt(desktop.Handle,bin.Handle,handle,cargo.Handle);
+                    Check(NextVisible(bin.Handle)==desktop.Handle && NextVisible(handle)==bin.Handle && NextVisible(cargo.Handle)==handle,"group changed layer order at "+i+": desktop="+desktop.Handle+", bin="+bin.Handle+" next="+GetWindow(bin.Handle,2)+", pet="+handle+" next="+GetWindow(handle,2)+", cargo="+cargo.Handle+" next="+GetWindow(cargo.Handle,2)+", app="+app.Handle+WindowOrder(handle));
+                    Check((GetWindowLong(handle,-20)&8)==0 && (GetWindowLong(bin.Handle,-20)&8)==0 && (GetWindowLong(cargo.Handle,-20)&8)==0,"group entered topmost band");
+                    Check(pet.Bounds==bounds && Native.GetForegroundWindow()==focus,"group moved or stole focus");
+                    Check(NextVisible(app.Handle)==cargo.Handle,"scene covered an ordinary application");
+                    IntPtr owner=GetWindow(handle,4);Check(owner==IntPtr.Zero || !IsWindowVisible(owner),"taskbar owner became visible");
+                    // A menu owner can request activation without reordering one member.
+                    Native.SetForegroundWindow(handle);Native.SetForegroundWindow(focus);
+                }
+                cargo.Hide();Native.KeepBackgroundGroupAt(desktop.Handle,bin.Handle,handle);
+                Check(NextVisible(handle)==bin.Handle && NextVisible(bin.Handle)==desktop.Handle,"hidden cargo broke ordering");
+                Native.KeepBackgroundGroupAt(IntPtr.Zero,bin.Handle,handle);
+                Check(NextVisible(handle)==bin.Handle && NextVisible(bin.Handle)==IntPtr.Zero,"no-Explorer fallback changed order"+WindowOrder(handle));
+            }
         }
     }
 
@@ -64,7 +169,7 @@ namespace MochiDesktop {
                 bool nativeRejected=false,nativeSucceeded=false;
                 pet.backgroundPlacement=delegate(IntPtr window){
                     try{Native.KeepBehindApps(new IntPtr(-12345));}
-                    catch(Win32Exception){nativeRejected=true;throw;}
+                    catch(System.ComponentModel.Win32Exception){nativeRejected=true;throw;}
                 };
                 pet.KeepBehindApps();
                 BackgroundPlacementTests.Check(nativeRejected,"native invalid-window fixture did not fail");
@@ -85,6 +190,27 @@ namespace MochiDesktop {
                 pet.backgroundPlacement=delegate(IntPtr window){throw new Exception("disposed window was placed");};
                 pet.Dispose();pet.KeepBehindApps();
                 BackgroundPlacementTests.Check(!pet.IsHandleCreated,"placement recreated a disposed handle");
+            }
+        }
+
+        internal static void VerifyBackgroundRefresh(){
+            using(Companion pet=new Companion(true)){
+                IntPtr handle=pet.Handle;pet.modal=true;int calls=0;
+                pet.backgroundPlacement=delegate{calls++;};pet.KeepBehindApps();
+                pet.simulatedTime=.05;for(int n=0;n<40;n++)pet.RequestBackgroundRefresh();pet.Tick();
+                BackgroundPlacementTests.Check(calls==2,"shell event waited for the one-second poll or produced a burst");
+                pet.Tick();BackgroundPlacementTests.Check(calls==2,"refresh request was not consumed");
+                pet.simulatedTime=.08;pet.Tick();BackgroundPlacementTests.Check(calls==3,"delayed Explorer change was not rechecked during settling");
+                calls--;
+                pet.backgroundPlacement=delegate{calls++;throw new Win32Exception(5);};
+                pet.simulatedTime=.1;pet.RequestBackgroundRefresh();pet.Tick();
+                for(int n=1;n<100;n++){pet.simulatedTime=.1+n/100.0;pet.RequestBackgroundRefresh();pet.Tick();}
+                BackgroundPlacementTests.Check(calls==3,"event burst bypassed access-denied backoff");
+                pet.backgroundPlacement=delegate{calls++;};pet.simulatedTime=1.11;pet.Tick();
+                BackgroundPlacementTests.Check(calls==4,"event recovery did not retry");
+                pet.modal=false;pet.StartManualSwimming();pet.RequestBackgroundRefresh();pet.simulatedTime=1.2;pet.Tick();
+                BackgroundPlacementTests.Check(calls==4,"event disturbed Manual mode");
+                pet.StopManualSwimming();pet.Tick();BackgroundPlacementTests.Check(calls==5,"pending refresh lost after Manual mode");
             }
         }
 

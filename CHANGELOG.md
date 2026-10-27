@@ -2,6 +2,17 @@
 
 Small updates for your little ocean. These notes are also available offline in Settings → What's New.
 
+## 1.2.14 - Tiny fins, a cleaner ocean
+
+- Ocean Cleanup brings twelve colorful drifting litter designs: three each for bottles, bags, lost nets, and rubbish cans. Mochi reacts, gathers courage, and collects them with his mouth or fins.
+- Six illustrated Ocean Bins appear at varied spots on Mochi's screen: a pearl clam, coral basket, buoy barrel, salvage chest, nautilus pot, or submarine pod. Every cleanup uses Mochi's own bin, with a brief hopeful closing message.
+- Mouth and flipper carries are now randomized for every litter type. Mouth pickups include the same gentle open-and-close chomp as desktop-icon stealing. Lost nets drift open and gather into a compact bundle during pickup; held litter stays fully visible as one upright sprite, using the same attachment points as desktop icons.
+- Cleanup swimming averages 140 px/s, with the same gentle acceleration and deceleration as normal swimming and icon stealing on both the approach and journey to the bin. Mochi, the Ocean Bin, and the litter are drawn together in one frame so separate windows cannot blink when they overlap.
+- Desktop-menu dismissal uses stable app placement and follows Explorer’s settling changes to avoid dropping the scene behind the desktop.
+- Mochi stops beside the Ocean Bin for a clear handoff. Scene layers stay in order, and closing a right-click menu promptly restores desktop placement. His own menu pauses and resumes a cleanup.
+- Cleanups wait their turn every 4–7 minutes, respect Pause swimming, and can be disabled in Settings. Choose Clean the ocean from the menu to try one immediately.
+- Cleanup litter is animated artwork; it never creates, deletes, recycles, or moves your files or desktop icons.
+
 ## 1.2.13 - Safer currents, steadier swims
 
 ### Updates you can trust

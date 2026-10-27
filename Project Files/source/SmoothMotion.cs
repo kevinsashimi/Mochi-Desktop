@@ -101,6 +101,8 @@ namespace MochiDesktop {
         PointF AtParameter(double parameter){double p=Math.Max(0,Math.Min(1,parameter))*curves.Length;int segment=Math.Min(curves.Length-1,(int)p);return curves[segment].At(p-segment);}
         public PointF Position(double t){return AtParameter(Parameter(Progress(t)));}
         public PointF Heading(double t){double p=Parameter(Progress(t))*curves.Length;int segment=Math.Min(curves.Length-1,(int)p);return curves[segment].Tangent(p-segment);}
+        public PointF PositionAtDistance(double distance){return AtParameter(Parameter(Length>0?distance/Length:0));}
+        public PointF HeadingAtDistance(double distance){double p=Parameter(Length>0?distance/Length:0)*curves.Length;int segment=Math.Min(curves.Length-1,(int)p);return curves[segment].Tangent(p-segment);}
     }
 
     static class SmoothMotionTests {

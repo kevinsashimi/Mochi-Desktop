@@ -154,7 +154,7 @@ namespace MochiDesktop {
         }
         void BeginDestinationSwim(Point target,Rectangle routeArea){
             StopManualSwimming();
-            CancelPlayful();
+            CancelPlayful();CancelCleanup();
             CancelRegularAnimation();
             StopPicking();startupHintAt=-1;gaze.Reset();feeding=null;reaction=null;down=false;dragging=false;
             SwimPath path=new SwimPath(Location,Size,routeArea,random,false,target);

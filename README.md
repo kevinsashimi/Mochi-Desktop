@@ -201,3 +201,15 @@ To publish an app update:
 Never edit the checksum or signature manually, replace a published version's assets, or reuse a version number for a new executable. Installed clients accept metadata only when its signature matches Mochi's pinned offline key. Documentation-only changes do not trigger an app update.
 
 </details>
+
+### Ocean Cleanup
+
+Every 4–7 minutes, a bottle, plastic bag, lost fishing net, or rubbish can drifts into Mochi's ocean. Each type has three colorful illustrated designs, with larger artwork, clear outlines, and a brief arrival ripple to help you spot it. He reacts with sadness, displeasure, or a little indignation, takes a brave breath, and carries it away with his fins or a gentle mouth grip. One brief, hopeful message finishes the story, then Mochi returns to his usual activities.
+
+Choose **Clean the ocean** from Mochi's right-click menu to try it immediately. **Settings → Ocean Cleanup** controls automatic encounters; **Pause swimming** pauses them too. Cleanups wait for other activities. Opening Mochi’s menu pauses cleanup; dismissing it resumes the same scene. Choosing another activity or dragging Mochi ends the cleanup.
+
+Each cleanup independently chooses a mouth grip or a flipper hug for any litter type. Mouth pickups begin with the same gentle open-and-close chomp used when stealing desktop icons. The entire held litter image stays visible and upright at the same carrying points used for desktop icons. Lost nets drift sprawled open, then gather into a compact bundle during pickup.
+
+Mochi approaches litter and carries it to the Ocean Bin at an average **140 pixels per second**. Each journey uses the same smooth acceleration and deceleration as normal swimming and icon stealing: a gentle start, faster swimming around the middle, and a soft stop at the destination. Longer journeys take more time. Mochi, the litter, and the Ocean Bin are drawn together in one frame throughout the encounter to prevent overlapping windows from blinking.
+
+Mochi always delivers litter to his own **Ocean Bin**. A pearl clam, coral basket, buoy barrel, salvage chest, nautilus pot, or submarine pod appears at a random safe spot on his current screen. Its position stays fixed for that delivery; the next cleanup chooses a new design and location. Cleanup does not look up or use the Windows Recycle Bin. This is a visual story: it creates no trash files and never changes the Recycle Bin or your desktop icons. Real bags and fishing nets need local disposal guidance; they are not necessarily accepted in household recycling.

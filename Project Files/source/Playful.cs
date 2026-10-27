@@ -200,7 +200,7 @@ namespace MochiDesktop {
             }
             return result;
         }
-        static void DrawBody(Graphics g, Bitmap sprite, Rectangle body, Size window, bool right, float bob, float tilt, bool foreground, MischiefKind kind) {
+        internal static void DrawBody(Graphics g, Bitmap sprite, Rectangle body, Size window, bool right, float bob, float tilt, bool foreground, MischiefKind kind) {
             GraphicsState state = g.Save();
             if (right) { g.TranslateTransform(window.Width, 0); g.ScaleTransform(-1, 1); }
             g.TranslateTransform(body.Left + body.Width / 2f, body.Top + body.Height / 2f + bob);
