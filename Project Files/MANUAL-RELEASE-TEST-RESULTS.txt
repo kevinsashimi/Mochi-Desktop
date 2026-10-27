@@ -1,7 +1,9 @@
-Mochi Desktop 1.2.14 - unsigned manual-download release
+Mochi Desktop 1.2.15 - unsigned manual-download release with update checks
 
-64 regression groups and 7 live UI checks passed under Wine/Xvfb.
-12 build-mode/syntax checks passed under Linux PowerShell (Windows-relative fixture paths adapted).
+65 regression groups passed under Wine/Xvfb, including 9 updater groups.
+Final production EXE: no-release/current/newer dialogs and Info opened and dismissed; startup notification rules verified through the production code.
+Live production network check: GitHub HTTP 404 correctly reported no public release before publication.
+Native Windows 11 testing is not claimed.
 
 TEST-RESULTS.txt
 PASS: all 16 direction mappings; 1000 offscreen clamps including negative-coordinate monitor; travel endpoints; all animation frame bounds; 73 original + 24 feeding + 32 illustrated interaction cells; alpha-transparent window; render geometry.
@@ -76,7 +78,8 @@ PASS: real helper waits for old process, replaces Mochi.exe, and launches the ne
 PASS: exact download, validation, preparation and launch failure stages; native error codes; LocalAppData-style diagnostic report and fallback; cancellation stays silent; blocked helper leaves app and settings intact.
 PASS: emitted .NET Framework-compatible TrimEnd(char[]) references; valid temporary updater directories and trailing separators; malformed and nested directories rejected.
 PASS: shared pet/tray menu contains Check for updates and Info; displayed version comes from the running assembly.
-PASS: manual-download edition skips startup update checks, queues a user-requested download-page prompt without starting the updater, and clears the notice on cancellation.
+PASS: published-release checks compare numeric versions, ignore supplied URLs, reject drafts/previews/malformed or oversized metadata, handle missing releases/offline/cancellation, and request only GitHub release metadata.
+PASS: asynchronous startup/menu checks offer newer releases, keep routine startup results silent, report explicit checks, restore menu state after failures and clear notices on cancellation without downloading executables.
 
 wallpaper-test-results.txt
 PASS: fresh installs and legacy live-wallpaper settings default off; Save, Cancel, opt-in/out persistence and other preferences.
@@ -85,31 +88,13 @@ PASS: disabled wallpaper loads no artwork; turning off cancels startup and relea
 PASS: controlled native fixtures select classic and raised desktop hosts, reject unsafe hosts, and detect host changes/destruction.
 PASS: native Windows compatibility manifest and actionable Win32 diagnostic errors.
 
-Live UI
-PASS: Settings opens and saves the new default cleanup preference
-PASS: manual update prompt opens from the menu and cancels without an updater error or restart
-PASS: release Info dialog opens and dismisses normally for manual-edition version review
-PASS: clicking Mochi in the expanded scene opens his menu; a five-second pause and outside click resume the same cleanup
-PASS: release cleanup finishes pickup, carry and disposal on one window and restores normal pet bounds
-PASS: automatic cleanup can be disabled and saved through Settings
-PASS: Settings IPC cancels a fresh encounter and restores the ordinary window without leftover prop windows
-
-Release binary
-PASS: final release is Mochi 1.2.14.0 with manual distribution enabled; startup skips updates and the menu queues manual instructions without starting the updater.
+Production executable checks
+PASS: final production executable queues none release result and its dialog dismisses normally.
+PASS: final production executable queues v1.2.15 release result and its dialog dismisses normally.
+PASS: final production executable queues v1.2.16 release result and its dialog dismisses normally.
+PASS: final release identity 1.2.15.0; only a newer release prompts at startup; manual downloads enabled.
 X connection to :99 broken (explicit kill or server shutdown).
 
-Build modes
-PASS: manual release
-PASS: manual explicit no metadata
-PASS: manual with signed mode
-PASS: manual with test hooks
-PASS: manual with metadata
-PASS: manual with Authenticode key
-PASS: manual with update key
-PASS: default root stays signed
-PASS: signed without metadata
-PASS: signed with test hooks
-PASS: staging tests
-PASS: complete build script parses without PowerShell errors
+PASS: production network check handles GitHub HTTP 404 as no published release.
 
-EXE SHA256: e0fd99c4e7d64bfdf6b718f54a6b7c26eb6abb85b3d315a4fbbf3d68d9070b02
+EXE SHA256: 82bf5fb2fad3c9dc8ec610776f40781d6a5e61c1e66bec8e19a67ea365f20a5f

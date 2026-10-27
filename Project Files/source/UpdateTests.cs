@@ -54,6 +54,7 @@ namespace MochiDesktop {
             public byte[] Get(string url, int max, CancellationToken cancellation) {
                 cancellation.ThrowIfCancellationRequested(); Requests.Add(url);
                 if (Failure != null) throw Failure;
+                if (Metadata != null && Metadata.Length > max) throw new InvalidDataException("Fixture exceeds the requested response limit.");
                 return url == UpdateService.CommitUrl ? Encoding.UTF8.GetBytes("{\"sha\":\"" + new string('a', 40) + "\"}") : Metadata;
             }
             public void Download(string url, string path, long size, CancellationToken cancellation) {
@@ -61,6 +62,56 @@ namespace MochiDesktop {
                 if (Failure != null) throw Failure;
                 File.WriteAllBytes(path, Binary);
             }
+        }
+        static byte[] Release(string tag, string flags = "\"draft\":false,\"prerelease\":false") {
+            return Encoding.UTF8.GetBytes("{\"tag_name\":\"" + tag + "\"," + flags +
+                ",\"published_at\":\"2026-10-27T00:00:00Z\",\"html_url\":\"https://example.invalid/evil.exe\"}");
+        }
+        static void VerifyManualReleases() {
+            FakeTransport network = new FakeTransport { Metadata = Release("v1.10.0") };
+            ManualReleaseService service = new ManualReleaseService(network);
+            ManualReleaseInfo newer = service.Check(CancellationToken.None);
+            Check(newer.Version == new Version(1,10,0,0) && newer.Version > new Version(1,9,0,0), "release versions not compared numerically");
+            Check(newer.PageUrl == UpdateService.Repository + "/releases/tag/v1.10.0", "untrusted release URL was used");
+            Check(ManualReleaseInfo.Parse(Release("1.2.14.1")).Version == new Version(1,2,14,1), "four-component release rejected");
+            foreach (string tag in new[] { "v1.2", "v1.2.15-preview-v1", "v1.2.15/evil", "https://evil.test", "v99999999999.0.0", "v0.1.0" })
+                Reject(delegate { ManualReleaseInfo.Parse(Release(tag)); }, "invalid public release tag");
+            Reject(delegate { ManualReleaseInfo.Parse(Release("v1.2.15", "\"draft\":true,\"prerelease\":false")); }, "draft release");
+            Reject(delegate { ManualReleaseInfo.Parse(Release("v1.2.15", "\"draft\":false,\"prerelease\":true")); }, "prerelease");
+            Reject(delegate { ManualReleaseInfo.Parse(Release("v1.2.15", "\"draft\":false")); }, "missing release status");
+            foreach (string json in new[] { "null", "{}", "<html>", "{\"tag_name\":\"v1.2.15\",\"draft\":false,\"prerelease\":false,\"published_at\":null}" })
+                Reject(delegate { ManualReleaseInfo.Parse(Encoding.UTF8.GetBytes(json)); }, "malformed public release");
+            network.Metadata = new byte[ManualReleaseService.MaximumBytes + 1];
+            Reject(delegate { service.Check(CancellationToken.None); }, "oversize release response");
+            network.Failure = new GitHubNotFoundException();
+            Check(service.Check(CancellationToken.None) == null, "missing release not handled");
+            network.Failure = new IOException("offline");
+            Reject(delegate { service.Check(CancellationToken.None); }, "offline public release check");
+            network.Failure = null;
+            using (CancellationTokenSource cancellation = new CancellationTokenSource()) {
+                cancellation.Cancel();
+                Reject(delegate { service.Check(cancellation.Token); }, "cancelled public release check");
+            }
+#if MOCHI_TESTS
+            if (AppVersion.ManualDownloadOnly) {
+                foreach (bool requested in new[] { false, true }) {
+                    network.Metadata = Release("v" + new Version(AppVersion.Current.Major + 1,0,0));
+                    Companion.VerifyManualReleaseCheck(network, requested, true, false);
+                    foreach (string tag in new[] { "v" + AppVersion.Text, "v1.0.0" }) {
+                        network.Metadata = Release(tag);
+                        Companion.VerifyManualReleaseCheck(network, requested, requested, false);
+                    }
+                    network.Failure = new GitHubNotFoundException();
+                    Companion.VerifyManualReleaseCheck(network, requested, requested, false);
+                    network.Failure = new IOException("offline");
+                    Companion.VerifyManualReleaseCheck(network, requested, requested, false);
+                    network.Failure = null;
+                }
+                Companion.VerifyManualReleaseCheck(network, true, false, true);
+            }
+#endif
+            Check(network.Requests.TrueForAll(delegate(string url) { return url == ManualReleaseService.LatestUrl; }),
+                "manual release check downloaded executable code or used another source");
         }
         static string Fixture(string directory, Version version, bool wait, bool marker) {
             Directory.CreateDirectory(directory);
@@ -311,8 +362,10 @@ namespace MochiDesktop {
                 results.Add("PASS: emitted .NET Framework-compatible TrimEnd(char[]) references; valid temporary updater directories and trailing separators; malformed and nested directories rejected.");
                 Companion.VerifyUpdateMenu();
                 results.Add("PASS: shared pet/tray menu contains Check for updates and Info; displayed version comes from the running assembly.");
+                VerifyManualReleases();
+                results.Add("PASS: published-release checks compare numeric versions, ignore supplied URLs, reject drafts/previews/malformed or oversized metadata, handle missing releases/offline/cancellation, and request only GitHub release metadata.");
                 if (AppVersion.ManualDownloadOnly)
-                    results.Add("PASS: manual-download edition skips startup update checks, queues a user-requested download-page prompt without starting the updater, and clears the notice on cancellation.");
+                    results.Add("PASS: asynchronous startup/menu checks offer newer releases, keep routine startup results silent, report explicit checks, restore menu state after failures and clear notices on cancellation without downloading executables.");
                 File.WriteAllLines(reportPath, results.ToArray());
                 return 0;
             } catch (Exception error) {

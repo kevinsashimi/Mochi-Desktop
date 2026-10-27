@@ -156,6 +156,10 @@ namespace MochiDesktop {
         void Download(string url, string path, long expectedSize, CancellationToken cancellation);
     }
 
+    sealed class GitHubNotFoundException : IOException {
+        public GitHubNotFoundException() : base("GitHub did not find the requested release or file.") { }
+    }
+
     sealed class GitHubTransport : IUpdateTransport {
         static HttpWebRequest CreateRequest(string url, int timeout) {
             Uri uri = new Uri(url);
@@ -195,9 +199,14 @@ namespace MochiDesktop {
                                 }
                             }
                         }
-                    } catch (WebException) {
+                    } catch (WebException error) {
                         cancellation.ThrowIfCancellationRequested();
                         if (deadline.IsCancellationRequested) throw new TimeoutException("The connection to GitHub timed out.");
+                        HttpWebResponse response = error.Response as HttpWebResponse;
+                        if (response != null && response.StatusCode == HttpStatusCode.NotFound) {
+                            response.Dispose();
+                            throw new GitHubNotFoundException();
+                        }
                         throw;
                     } catch (OperationCanceledException) {
                         cancellation.ThrowIfCancellationRequested();
@@ -215,6 +224,55 @@ namespace MochiDesktop {
         public void Download(string url, string path, long expectedSize, CancellationToken cancellation) {
             using (FileStream stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None))
                 Read(url, stream, expectedSize, 120000, cancellation);
+        }
+    }
+
+    // Release announcements are informational only. They never authorize the
+    // executable downloader or installer, which still require signed metadata.
+    sealed class ManualReleaseInfo {
+        public readonly Version Version;
+        public readonly string PageUrl;
+        ManualReleaseInfo(Version version, string tag) {
+            Version = version;
+            PageUrl = UpdateService.Repository + "/releases/tag/" + tag;
+        }
+        [DataContract] sealed class ReleaseResponse {
+            [DataMember(Name = "tag_name", IsRequired = true)] public string Tag;
+            [DataMember(Name = "draft", IsRequired = true)] public bool Draft;
+            [DataMember(Name = "prerelease", IsRequired = true)] public bool Prerelease;
+            [DataMember(Name = "published_at", IsRequired = true)] public string Published;
+        }
+        public static ManualReleaseInfo Parse(byte[] bytes) {
+            if (bytes == null || bytes.Length > ManualReleaseService.MaximumBytes)
+                throw new InvalidDataException("The GitHub release information is too large or missing.");
+            ReleaseResponse release;
+            using (MemoryStream stream = new MemoryStream(bytes))
+                release = (ReleaseResponse)new DataContractJsonSerializer(typeof(ReleaseResponse)).ReadObject(stream);
+            Version version;
+            DateTimeOffset published;
+            if (release == null || release.Draft || release.Prerelease || release.Tag == null || release.Tag.Length > 64 ||
+                !Regex.IsMatch(release.Tag, @"\Av?[0-9]+\.[0-9]+\.[0-9]+(?:\.[0-9]+)?\z") ||
+                !System.Version.TryParse(release.Tag.TrimStart('v'), out version) || version.Major < 1 ||
+                !DateTimeOffset.TryParse(release.Published, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out published))
+                throw new InvalidDataException("GitHub did not return a valid published Mochi release.");
+            return new ManualReleaseInfo(new Version(version.Major, version.Minor, version.Build, Math.Max(0, version.Revision)), release.Tag);
+        }
+    }
+
+    sealed class ManualReleaseService {
+        public const string LatestUrl = "https://api.github.com/repos/kevinsashimi/Mochi-Desktop/releases/latest";
+        public const int MaximumBytes = 256 * 1024;
+        readonly IUpdateTransport transport;
+        public ManualReleaseService(IUpdateTransport transport) { this.transport = transport; }
+        public ManualReleaseInfo Check(CancellationToken cancellation) {
+            return UpdateDiagnostics.At("Checking published GitHub releases", delegate {
+                cancellation.ThrowIfCancellationRequested();
+                byte[] bytes;
+                try { bytes = transport.Get(LatestUrl, MaximumBytes, cancellation); }
+                catch (GitHubNotFoundException) { cancellation.ThrowIfCancellationRequested(); return null; }
+                cancellation.ThrowIfCancellationRequested();
+                return ManualReleaseInfo.Parse(bytes);
+            });
         }
     }
 
@@ -547,27 +605,31 @@ namespace MochiDesktop {
             menu.Items.Add("Info", null, delegate { ShowInfo(); });
         }
         void StartUpdateCheck(bool manual) {
-            if (closing || IsDisposed) return;
-            if (AppVersion.ManualDownloadOnly) {
-                if (manual) { manualUpdateCheck = true; pendingUpdateNotice = ShowManualDownloads; }
-                return;
-            }
             if (simulation) return;
+            RunUpdateCheck(manual, new GitHubTransport());
+        }
+        void RunUpdateCheck(bool manual, IUpdateTransport transport) {
+            if (closing || IsDisposed || updateCancellation.IsCancellationRequested) return;
             if (checkingUpdates) { manualUpdateCheck |= manual; return; }
             checkingUpdates = true; manualUpdateCheck = manual; pendingUpdateNotice = null;
             updateItem.Enabled = false; updateItem.Text = "Checking for updates...";
             BackgroundWorker worker = new BackgroundWorker();
             worker.DoWork += delegate(object sender, DoWorkEventArgs e) {
-                e.Result = new UpdateService(new GitHubTransport()).Check(AppVersion.Current, updateCancellation.Token);
+                if (AppVersion.ManualDownloadOnly)
+                    e.Result = new ManualReleaseService(transport).Check(updateCancellation.Token);
+                else e.Result = new UpdateService(transport).Check(AppVersion.Current, updateCancellation.Token);
             };
             worker.RunWorkerCompleted += delegate(object sender, RunWorkerCompletedEventArgs e) {
                 worker.Dispose();
                 if (closing || IsDisposed) return;
                 checkingUpdates = false; updateItem.Enabled = true; updateItem.Text = "Check for updates";
+                if (updateCancellation.IsCancellationRequested) return;
                 bool requested = manualUpdateCheck;
                 if (e.Error != null) {
                     if (requested && !(e.Error is OperationCanceledException))
                         pendingUpdateNotice = delegate { ShowUpdateMessage(UpdateDiagnostics.Report(e.Error, "Checking for updates"), MessageBoxIcon.Information); };
+                } else if (AppVersion.ManualDownloadOnly) {
+                    QueueManualReleaseNotice((ManualReleaseInfo)e.Result, requested);
                 } else {
                     UpdateInfo update = (UpdateInfo)e.Result;
                     if (update != null) pendingUpdateNotice = delegate { OfferUpdate(update); };
@@ -577,6 +639,16 @@ namespace MochiDesktop {
                 }
             };
             worker.RunWorkerAsync();
+        }
+        void QueueManualReleaseNotice(ManualReleaseInfo release, bool requested) {
+            if (release != null && release.Version > AppVersion.Current)
+                pendingUpdateNotice = delegate { ShowManualDownloads(release); };
+            else if (requested) pendingUpdateNotice = delegate {
+                ShowUpdateMessage(release == null ?
+                    "No public release is available on GitHub yet.\n\nYou're running Mochi Desktop " + AppVersion.Text + ". Please check again later." :
+                    "You're up to date!\n\nMochi Desktop " + AppVersion.Text + "\nLatest public release: " + AppVersion.Display(release.Version),
+                    MessageBoxIcon.Information);
+            };
         }
         void PumpUpdateNotice() {
             if (pendingUpdateNotice == null || closing || modal || releaseWelcome != null || menu.Visible || down || choosingDestination || manualSwim != null || playful != null ||
@@ -590,17 +662,17 @@ namespace MochiDesktop {
             try { MessageBox.Show(message, "Mochi updates", MessageBoxButtons.OK, icon); }
             finally { EndUpdateDialog(); }
         }
-        void ShowManualDownloads() {
+        void ShowManualDownloads(ManualReleaseInfo release) {
             BeginUpdateDialog();
             try {
-                if (MessageBox.Show("Mochi Desktop " + AppVersion.Text + " uses manual updates.\n\n" +
-                    "Download the latest Mochi.exe from GitHub. Quit Mochi, then replace only Mochi.exe in the same folder to keep your settings.\n\n" +
+                if (MessageBox.Show("Mochi " + AppVersion.Display(release.Version) + " is available!\nYou're running version " + AppVersion.Text + ".\n\n" +
+                    "Download Mochi.exe from GitHub. Quit Mochi, then replace only Mochi.exe in the same folder to keep your settings.\n\n" +
                     "Open the download page?", "Mochi updates", MessageBoxButtons.YesNo, MessageBoxIcon.Information,
                     MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
-                try { using (Process browser = Process.Start(new ProcessStartInfo(UpdateService.Repository + "/releases/latest") { UseShellExecute = true })) { } }
+                try { using (Process browser = Process.Start(new ProcessStartInfo(release.PageUrl) { UseShellExecute = true })) { } }
                 catch (Exception error) {
                     if (!(error is Win32Exception) && !(error is InvalidOperationException)) throw;
-                    MessageBox.Show("Couldn't open your browser. Visit:\n\n" + UpdateService.Repository + "/releases/latest",
+                    MessageBox.Show("Couldn't open your browser. Visit:\n\n" + release.PageUrl,
                         "Mochi updates", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
             } finally { EndUpdateDialog(); }
@@ -611,7 +683,7 @@ namespace MochiDesktop {
                 MessageBox.Show("Mochi Desktop\nVersion " + AppVersion.Text +
                     "\n\nYour little whale shark companion.\n\n" + UpdateService.Repository +
                     "\n\nRunning from:\n" + Application.ExecutablePath +
-                    (AppVersion.ManualDownloadOnly ? "\n\nManual-download edition. Use Check for updates to open the download page." :
+                    (AppVersion.ManualDownloadOnly ? "\n\nChecks for updates at startup. Use Check for updates anytime; download and install new versions manually." :
                     "\n\nUse Check for updates to look for a newer version."),
                     "About Mochi", MessageBoxButtons.OK, MessageBoxIcon.Information);
             } finally { EndUpdateDialog(); }
@@ -641,6 +713,21 @@ namespace MochiDesktop {
             if (restarting) Close();
         }
         void StopUpdateChecks() { updateCancellation.Cancel(); pendingUpdateNotice = null; }
+#if MOCHI_TESTS
+        internal static void VerifyManualReleaseCheck(IUpdateTransport transport, bool requested, bool notice, bool cancel) {
+            using (Companion pet = new Companion(true)) {
+                pet.RunUpdateCheck(requested, transport);
+                if (!pet.checkingUpdates || pet.updateItem.Enabled) throw new Exception("Release check did not enter its busy state.");
+                pet.RunUpdateCheck(requested, transport); // A repeated click must share the active request.
+                if (cancel) pet.StopUpdateChecks();
+                Stopwatch timeout = Stopwatch.StartNew();
+                while (pet.checkingUpdates && timeout.ElapsedMilliseconds < 5000) { Application.DoEvents(); Thread.Sleep(10); }
+                if (pet.checkingUpdates || !pet.updateItem.Enabled || pet.updateItem.Text != "Check for updates")
+                    throw new Exception("Release check did not restore its menu state.");
+                if ((pet.pendingUpdateNotice != null) != notice) throw new Exception("Incorrect release notification state.");
+            }
+        }
+#endif
         public static void VerifyUpdateMenu() {
             using (Companion pet = new Companion(true)) {
                 int checks = 0, info = 0;
@@ -652,10 +739,11 @@ namespace MochiDesktop {
                 if (AppVersion.ManualDownloadOnly) {
                     pet.StartUpdateCheck(false);
                     if (pet.pendingUpdateNotice != null || pet.checkingUpdates || !pet.updateItem.Enabled)
-                        throw new Exception("Manual-download startup launched an update check.");
-                    pet.StartUpdateCheck(true);
-                    if (pet.pendingUpdateNotice == null || !pet.manualUpdateCheck || pet.checkingUpdates || !pet.updateItem.Enabled)
-                        throw new Exception("Manual-download menu did not queue the download-page prompt.");
+                        throw new Exception("Simulation launched a real network request.");
+                    pet.QueueManualReleaseNotice(null, false);
+                    if (pet.pendingUpdateNotice != null) throw new Exception("Startup announced a missing public release.");
+                    pet.QueueManualReleaseNotice(null, true);
+                    if (pet.pendingUpdateNotice == null) throw new Exception("Explicit check did not report a missing public release.");
                     pet.StopUpdateChecks();
                     if (pet.pendingUpdateNotice != null) throw new Exception("Manual-download notice survived cancellation.");
                 }

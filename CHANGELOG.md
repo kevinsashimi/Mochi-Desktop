@@ -2,6 +2,12 @@
 
 Small updates for your little ocean. These notes are also available offline in Settings → What's New.
 
+## 1.2.15 - A little heads-up for new updates
+
+- Mochi checks for new public releases when he starts, and whenever you choose Check for updates. He lets you know when a newer version is ready.
+- Open the official release page from his notification, then quit Mochi and replace Mochi.exe to update while keeping your settings. This unsigned edition does not need a paid signing certificate.
+- Update checks ignore drafts and previews, handle connection problems quietly at startup, and never download or run an executable automatically.
+
 ## 1.2.14 - Tiny fins, a cleaner ocean
 
 - Ocean Cleanup brings twelve colorful drifting litter designs: three each for bottles, bags, lost nets, and rubbish cans. Mochi reacts, gathers courage, and collects them with his mouth or fins.

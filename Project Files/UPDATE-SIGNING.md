@@ -1,7 +1,7 @@
 # Release and update signing
 
 Mochi supports unsigned manual-download releases and signed automatic updates.
-Version 1.2.14 is distributed as an **unsigned manual download**.
+Version 1.2.15 is distributed as an **unsigned manual download**.
 
 Signed automatic-update releases use two independent signatures:
 
@@ -21,7 +21,7 @@ whenever possible.
 
 ## Unsigned manual-download releases
 
-The project owner has chosen unsigned manual distribution for version 1.2.14.
+The project owner has chosen unsigned manual distribution for version 1.2.15.
 No signing certificate or update-signing key is needed for this mode:
 
 ```powershell
@@ -29,9 +29,13 @@ No signing certificate or update-signing key is needed for this mode:
 ```
 
 This explicitly allows an unsigned repository-root `Mochi.exe` and compiles
-`MOCHI_MANUAL_RELEASE`. The app makes no startup update request. **Check for
-updates** offers to open the official GitHub download page; it does not download
-or install executable code. Users quit Mochi and replace only `Mochi.exe` in the
+`MOCHI_MANUAL_RELEASE`. The app checks GitHub’s latest published release at startup and through **Check
+for updates**. It compares stable numeric release tags, excludes drafts and
+prereleases, and offers the official release page only when a newer version is
+available. Startup failures stay silent; explicit checks report their result.
+An HTTP 404 means no public release is available yet. These announcements never
+authorize the executable downloader or installer. No executable code is
+downloaded or installed by this flow. Users quit Mochi and replace only `Mochi.exe` in the
 same folder to preserve settings. Windows may show an unknown-publisher warning.
 
 The mode rejects `-PublicRelease`, `-TestHooks`, an update-manifest path, and
@@ -40,6 +44,8 @@ metadata has been removed from the repository so it cannot be mistaken for
 metadata matching the new executable. Publish only the executable, a ZIP with
 an enclosing folder, manual installation notes and SHA-256 checksums. Checksums
 identify the exact download; they do not substitute for a publisher signature.
+Use a stable tag such as `v1.2.15` and publish the finished release as latest so
+installed copies can discover it.
 
 Verify the executable with `verify-package.py` without `--update-manifest` or
 `--require-certificate-table`. Verify the managed/native version, no test hooks,
