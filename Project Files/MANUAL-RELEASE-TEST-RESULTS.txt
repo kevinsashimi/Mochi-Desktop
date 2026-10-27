@@ -1,0 +1,115 @@
+Mochi Desktop 1.2.14 - unsigned manual-download release
+
+64 regression groups and 7 live UI checks passed under Wine/Xvfb.
+12 build-mode/syntax checks passed under Linux PowerShell (Windows-relative fixture paths adapted).
+
+TEST-RESULTS.txt
+PASS: all 16 direction mappings; 1000 offscreen clamps including negative-coordinate monitor; travel endpoints; all animation frame bounds; 73 original + 24 feeding + 32 illustrated interaction cells; alpha-transparent window; render geometry.
+PASS: five-reaction feeding rotation; saved next reaction after restart; legacy settings default; malformed counter normalization; feed timelines and finish boundaries; snack disappears at gulp; screen-edge chase in both directions; timed feeding speech at all 3 sizes.
+PASS: continuous gaze motion in all 16 directions at all 3 sizes; no clipping; smooth wraparound and reverse turns; real timer path completes repeated swims with a parked or distant cursor; pause, drag, settings, feeding and held clicks retain priority.
+PASS: 6 petting and 5 play reactions; independent persisted rotations; old preferences retained; reaction speech lifetime; every illustrated frame used in sequence without synthetic sprite rotation; changing rendered frames and clear window edges at all 3 sizes; settle to idle; interruption and activity priorities through the actual timer path.
+PASS: 500 seeded single-click requests reach all 32 directional variants without immediate repeats, react immediately, preserve menu cycles, ignore right-button releases, and keep dragging separate; all drag/drop sayings reached without consecutive repeats.
+PASS: 100 full idle category cycles; all 16 routines selected; varied 60-180 second waits; no early starts; wait restarts after animation completion; swims finish before due activities; roaming and gaze do not reset the timer; paused swimming allows idle activities; manual clicks, reactions, dragging and controls retain priority; manual counters are preserved; long timer gaps do not queue a burst of reactions.
+PASS: single-pose rendering throughout feeding, reactions, idle and turns; opaque body has no strip seams at all 3 sizes; swimming renders in all 16 directions and 3 sizes without clipping; 2000 straight, curved, and mixed paths stay inside landscape, portrait and negative-coordinate screens; 16 heading sectors reached; all 3 swim styles and both mixed orders; continuous join headings; distance-based speed; smooth launch/landing; 320 inward edge escapes; 25-second border dwell; actual timer escape and manual/pause priorities.
+PASS: three random startup introductions; introduction precedes controls hint for 4 seconds each; manual actions and held clicks cancel the queued hint; text fits at every size.
+PASS: 32 directional variants; mirrored bodies and unmirrored speech at all 3 sizes; 3000 safe random spawns across three monitors; left/right idle startup poses throughout introductions and hints; lasting idle direction after every variant, 100 swims, drag reversals and release; final cursor-gaze facing retained on exit in all 16 directions, all 3 sizes, and both Playful Mode states; vertical gaze and distant pointers preserve the last side without resetting activity timers.
+PASS: Come here picker pauses other activity, consumes the selection click, cancels safely, and guides a real animated swim even with roaming paused; 900 safe target placements and routes; cross-monitor endpoints; remembered arrival facing; no surprise reaction from destination selection.
+
+cleanup-test-results.txt
+PASS: cleanup settings default, legacy migration, and on/off persistence.
+PASS: 108 complete stories across all four litter types, three emotions, all sizes, small/portrait/negative-coordinate screens; bounded routes and finite lifetime.
+PASS: every litter type independently selects both mouth and flipper grips; all twelve litter designs remain fully visible and upright with both grips, both facings, all sizes and moving poses; open nets gather smoothly into matching bundles.
+PASS: 3,888 deliveries keep Mochi clear of all six bins, including monitor edges, all sizes and grips; cargo reaches each opening and menu pauses preserve timing.
+PASS: twelve distinct litter designs and six Ocean Bins; visible artwork with transparent edges; randomized safe bin positions across every screen quadrant and receiving openings inside each bin.
+PASS: every story stage renders for all litter types, sizes and carry directions; transparent edges and readable speech.
+PASS: all three cleanup reactions animate in both directions and all sizes; sadness stays level between blinks with eyes no larger than the normal idle pose; anger/displeasure move continuously between fin gestures.
+PASS: actual timer ordering, pause/off/manual priorities, cancellation, sleep gap, no burst scheduling, stable Ocean Bin destinations, design variety without immediate repeats, and zero Explorer access.
+PASS: 432 overlapping scene frames preserve visible bin and carried litter pixels in one image across twelve litter designs, six bins, both grips and both facings.
+PASS: 96 cleanup stories average 140 px/s with normal-swimming acceleration/deceleration on both approach and carry; gentle starts/stops, matching eased positions, exact arrivals and mid-route pauses across small, portrait, 4K and 8K screens, all route styles and long deliveries.
+PASS: all twelve litter designs retain visible pixels, position, size and tilt across the approach/pickup boundary; gathering stays visible on a fixed canvas throughout pickup.
+PASS: native WM_PAINT, WM_ERASEBKGND and WM_PRINTCLIENT requests cannot overwrite the companion scene; invalidation is validated without discarding the layered image.
+PASS: Mochi, bin and litter use one native window and one complete bitmap upload through approach, pickup, carry and disposal; hit testing excludes props and empty space.
+PASS: failed scene uploads retain all objects, coordinates and the hit mask together with bounded retries; placement recovers; cancellation restores normal pet bounds and releases the hit mask.
+
+manual-test-results.txt
+PASS: WASD and arrow keys; held-key repeats, independent aliases, opposite keys and equal-speed mixed diagonals.
+PASS: smooth time-based motion at 30/60/120 Hz; release settling; long-frame guard; all sizes inside landscape, portrait and negative-coordinate monitors.
+PASS: menu entry, animated steering and retained facing; paused roaming; due Idle/Playful clocks preserved with three-second handoff; safe interruption, notices and disposal.
+PASS: short boosts in eight directions; Space edge-triggering; five-second boundary and cross-session recharge; equal distance at 30/60/120 Hz; resting dashes, wall protection and suspension safety.
+PASS: bounded transparent bubble wake, screen clipping, stationary and expiry behavior; all boost poses and sizes; silent/spoken variety; cooldown feedback and complete effect cleanup.
+PASS: 12 dedicated illustrated boost frames; three expressions without immediate repeats; launch/kick/settle timeline; every heading, expression and size keeps a full body clear of speech/status; left/right geometry; actual timer selects, renders and cleans up the new artwork.
+PASS: full-monitor visible-body bounds without speech/window padding; all four edges and corners, three sizes, normal and boosted movement, negative-coordinate and portrait monitors; edge-safe cooldown feedback and safe exit.
+PASS: stacked controls at narrow/desktop/4K widths; visible until first use; three-second reading time and smooth fade; held keys do not reset fading; mouse motion restores controls and starts a fresh fade.
+
+placement-test-results.txt
+PASS: startup access-denied failure does not interrupt the welcome, rendering or timer; periodic invalid-window failure retries and recovers.
+PASS: one-second retry cadence after success and failure; sustained failures and long timer gaps do not cause a busy loop; manual mode suspends background placement.
+PASS: missing, closing and disposed handles are skipped; unrelated exceptions remain visible; real native placement failure is contained; successful native placement preserves bounds, non-topmost behavior and focus.
+PASS: transient bitmap, Manual guide, and wake placement failures preserve the last frame, use bounded retries, and recover; unrelated failures remain visible.
+PASS: shell/menu refresh requests restore placement on the next tick, coalesce bursts, respect failure backoff and Manual mode.
+PASS: native shell/menu event subscription receives notifications and releases callbacks on disposal.
+PASS: transient desktop menus and hidden utility windows do not move or hide a correctly placed scene; delayed shell changes are rechecked throughout menu settling.
+PASS: native grouped placement preserves bin/pet/cargo order, bounds, focus and non-topmost styles through repeated placement and foreground changes.
+
+playful-test-results.txt
+PASS: settings-only opt-in toggle; Save/Cancel, persistence, old settings compatibility, status controls, and Save and try now.
+PASS: 1260 routes across sizes, edge icons, portrait and negative-coordinate monitors; all 16 directions, three path styles, varied distances, both facings, and on-screen cargo.
+PASS: native COM desktop-view handoff without IOleWindow; bounded STA calls, timeout circuit breaker, snapshots and targeted periodic identity checks; exact interface failure stages and reference cleanup; actual controller pickup/carry/drop/giggle; stable icon identity; untouched neighbors; cancellation restoration; user moves, deletion, grid snapping, occupied destinations, changed icon size, and Explorer unavailability.
+PASS: both grab/bite variants in both directions at all three sizes; changing rendered pixels, transparent corners, and unclipped body.
+PASS: real companion timer deadlines, repeated trips, speech variants, menu exclusion, interaction priorities, disabled mode, pause independence, and bounded pending turns; independent idle/prank clocks, oldest-due-first ordering, three-second handoffs, two hours of mixed categories without starvation, manual overrides, mode changes, 30-second retries, blocked reasons, mouse scope, and last-icon fallback.
+
+release-notes-test-results.txt
+PASS: embedded current release and ordered history; fresh/legacy installs, updater restarts, manual upgrades, repeated launches and downgrades; persisted release marker preserves preferences.
+PASS: deferred welcome respects controls and ongoing actions; no lost pending notice, no timer resets, no repeated welcome; fresh install records a quiet baseline.
+PASS: offline release selection and readable formatted content; dedicated Settings entry.
+
+security-test-results.txt
+PASS: settings XML has explicit size, DTD and root guards; malformed input retains safe defaults.
+PASS: settings save uses collision-resistant temporary names, cleans failures, preserves existing fixed-name files, and round-trips atomically.
+PASS: named-object scopes are deterministic, opaque, case-stable, and separated by user and installation path.
+
+update-test-results.txt
+PASS: pinned publisher signatures; tampered, missing and malformed signatures rejected; newer/same/older versions; numeric ordering; malformed/oversize metadata; offline and cancellation; no executable download during checks.
+PASS: only Mochi.exe downloaded; SHA-256, length, and embedded version validation; bad downloads rejected.
+PASS: atomic executable-only replacement, restart arguments, unchanged settings/support files, rollback on restart failure, locked and changed targets.
+PASS: real helper waits for old process, replaces Mochi.exe, and launches the new executable from paths containing spaces.
+PASS: exact download, validation, preparation and launch failure stages; native error codes; LocalAppData-style diagnostic report and fallback; cancellation stays silent; blocked helper leaves app and settings intact.
+PASS: emitted .NET Framework-compatible TrimEnd(char[]) references; valid temporary updater directories and trailing separators; malformed and nested directories rejected.
+PASS: shared pet/tray menu contains Check for updates and Info; displayed version comes from the running assembly.
+PASS: manual-download edition skips startup update checks, queues a user-requested download-page prompt without starting the updater, and clears the notice on cancellation.
+
+wallpaper-test-results.txt
+PASS: fresh installs and legacy live-wallpaper settings default off; Save, Cancel, opt-in/out persistence and other preferences.
+PASS: new Quiet Cove resource; live artwork/renderer absent; full 3840 x 2160 painting at 1:1 with no surround; proportional ultrawide, portrait and smaller layouts without enlargement.
+PASS: disabled wallpaper loads no artwork; turning off cancels startup and releases its resources.
+PASS: controlled native fixtures select classic and raised desktop hosts, reject unsafe hosts, and detect host changes/destruction.
+PASS: native Windows compatibility manifest and actionable Win32 diagnostic errors.
+
+Live UI
+PASS: Settings opens and saves the new default cleanup preference
+PASS: manual update prompt opens from the menu and cancels without an updater error or restart
+PASS: release Info dialog opens and dismisses normally for manual-edition version review
+PASS: clicking Mochi in the expanded scene opens his menu; a five-second pause and outside click resume the same cleanup
+PASS: release cleanup finishes pickup, carry and disposal on one window and restores normal pet bounds
+PASS: automatic cleanup can be disabled and saved through Settings
+PASS: Settings IPC cancels a fresh encounter and restores the ordinary window without leftover prop windows
+
+Release binary
+PASS: final release is Mochi 1.2.14.0 with manual distribution enabled; startup skips updates and the menu queues manual instructions without starting the updater.
+X connection to :99 broken (explicit kill or server shutdown).
+
+Build modes
+PASS: manual release
+PASS: manual explicit no metadata
+PASS: manual with signed mode
+PASS: manual with test hooks
+PASS: manual with metadata
+PASS: manual with Authenticode key
+PASS: manual with update key
+PASS: default root stays signed
+PASS: signed without metadata
+PASS: signed with test hooks
+PASS: staging tests
+PASS: complete build script parses without PowerShell errors
+
+EXE SHA256: e0fd99c4e7d64bfdf6b718f54a6b7c26eb6abb85b3d315a4fbbf3d68d9070b02

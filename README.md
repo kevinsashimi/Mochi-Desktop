@@ -8,9 +8,9 @@
 
 Meet Mochi, a tiny animated companion for Windows who swims around your desktop, follows your pointer with his eyes, and perks up when you stop by to play. Give him a snack, a gentle pat, or a spot to swim to. He has plenty of wiggles to share.
 
-Mochi stays **behind your app windows**, so he can keep you company while you work. He runs locally, with no account or API key needed. Playing with Mochi works offline; only update checks and downloads use the internet.
+Mochi stays **behind your app windows**, so he can keep you company while you work. He runs locally, with no account or API key needed. Playing with Mochi works offline; opening the download page uses the internet.
 
-**[Download the signed Mochi.exe release](https://github.com/kevinsashimi/Mochi-Desktop/releases/latest/download/Mochi.exe)** · [Get started](#1-bring-mochi-home) · [Learn the controls](#2-say-hello) · [What's New](CHANGELOG.md)
+**[Download Mochi.exe 1.2.14](https://github.com/kevinsashimi/Mochi-Desktop/releases/latest/download/Mochi.exe)** · [Get started](#1-bring-mochi-home) · [Learn the controls](#2-say-hello) · [What's New](CHANGELOG.md)
 
 ## A few of Mochi's moves
 
@@ -34,10 +34,12 @@ You need a **Windows PC with .NET Framework**. Modern Windows PCs, including Win
 
 You don’t need to install or compile anything—Mochi is ready to swim right out of the box! 🌊
 
-1. **[Download the signed Mochi.exe release](https://github.com/kevinsashimi/Mochi-Desktop/releases/latest/download/Mochi.exe).** This single file includes Mochi and his artwork.
-2. **Give him a home.** Save the file in a folder you can write to and plan to keep, such as `Documents\Mochi`. This lets the app save your preferences and install updates.
+1. **[Download Mochi.exe 1.2.14](https://github.com/kevinsashimi/Mochi-Desktop/releases/latest/download/Mochi.exe).** This single file includes Mochi and his artwork.
+2. **Give him a home.** Save the file in a folder you can write to and plan to keep, such as `Documents\Mochi`. This lets the app save your preferences.
 3. **Double-click `Mochi.exe`.** Mochi will appear at a random safe spot on one of your monitors and say hello.
 4. **Show your desktop and find him.** Minimize any windows covering him, then give him a click!
+
+This release is unsigned, so Windows may show an unknown-publisher or SmartScreen warning. Updates are downloaded and installed manually.
 
 Want the source and all the previews too? On this repository, choose **Code → Download ZIP**, then **Extract All** in Windows. Open `Mochi.exe` from the extracted folder. The `Project Files` folder contains the optional source, artwork, previews, and documentation.
 
@@ -154,16 +156,13 @@ Playful Mode and the snack / pat / play cycle keep their own clocks, so you stil
 
 ## Keeping Mochi up to date
 
-Mochi checks GitHub for updates in the background each time he starts. Signed update information is verified with Mochi's built-in public key before a newer executable can be accepted. If a newer version is available, he asks before downloading and restarting. Choose **No** to keep playing with your current version.
+Version **1.2.14** is a manual-download release. Choose **Check for updates** from Mochi's menu to open a prompt for the [GitHub download page](https://github.com/kevinsashimi/Mochi-Desktop/releases/latest), or choose **Info** to see your current version. This edition does not check for or install updates in the background.
 
-You can also choose **Check for updates** from his menu, or **Info** to see your current version. Updates replace only the executable and preserve your preferences. Offline? Mochi keeps you company as usual.
+To update, download the new `Mochi.exe`, choose **Quit Mochi**, replace only `Mochi.exe` in the same folder, then run it again. Keep your settings and `Project Files` folder. If an older copy's built-in updater fails, use these same manual steps.
 
 After an update, a little **“Fresh out of the tide!”** card shares the highlights once, centred on Mochi's display. Choose **What's New** for the full notes or **Keep swimming** to dismiss it. The card opens without taking keyboard focus and waits while Mochi is busy or his controls are open. You can always catch up through **Settings → What's New** or the [release notes here](CHANGELOG.md).
 
-If you have an older copy without **Check for updates**, quit it and replace it with the [current signed release](https://github.com/kevinsashimi/Mochi-Desktop/releases/latest/download/Mochi.exe) once to get the updater.
-
-If updating from an older build fails, version **1.1.6** fixes a Windows compatibility error in the updater. Install it once by quitting Mochi and replacing only `Mochi.exe`, keeping your settings and `Project Files`. See the [update troubleshooting notes](Project%20Files/UPDATE-DIAGNOSTICS.md). Mochi coordinates one running copy per user and installation folder, so a copy in another folder can run independently.
-
+Mochi coordinates one running copy per user and installation folder, so a copy in another folder can run independently.
 
 ## A few handy tips
 
@@ -180,25 +179,25 @@ The app is written in C# using Windows Forms. Explore the [source and artwork](P
 <details>
 <summary>Build Mochi and publish an update</summary>
 
-On Windows, quit Mochi and run this from the repository root in PowerShell. It uses the C# compiler included with .NET Framework; no package restore is needed. Public builds require an offline update-signing PFX plus a trusted Authenticode certificate and timestamp service, configured as described in the [release-signing guide](Project%20Files/UPDATE-SIGNING.md):
+On Windows, quit Mochi and run this from the repository root in PowerShell. It uses the C# compiler included with .NET Framework; no package restore or signing certificate is needed for the manual-download edition:
 
 ```powershell
-& '.\Project Files\source\build.ps1' -PublicRelease
+& '.\Project Files\source\build.ps1' -ManualRelease
 ```
 
-The public build Authenticode-signs the executable, then generates a separately signed `Project Files/update.xml` containing its version, size, and SHA-256 checksum. It verifies both signing configurations before compiling and stages all output before replacing an existing release. For an unsigned local build, pass `-OutputPath '...\Mochi.exe' -NoUpdateManifest`, using an existing output directory. Add `-TestHooks` only to an isolated self-test build; public releases reject that switch.
+`-ManualRelease` builds the repository-root `Mochi.exe` without developer test hooks, Authenticode signing, or update metadata. It compiles the manual-download update flow and cannot be combined with `-PublicRelease`, `-TestHooks`, or an update manifest. The old 1.2.12 `update.xml` has been retired; do not create an unsigned replacement for this release.
 
-Cloud builds use Microsoft's Roslyn compiler against .NET Framework 4.8 reference assemblies. Avoid Mono's `mcs` for release builds: it can omit the Windows manifest required by desktop wallpaper windows. With Python 3 available, verify a finished public release using `python3 'Project Files/build-tools/verify-package.py' Mochi.exe 'Project Files/source/app.manifest' --update-manifest 'Project Files/update.xml' --require-certificate-table`; this checks that a PE signature is present, while `Get-AuthenticodeSignature` must separately report `Valid` with a timestamp. The static-wallpaper self-test checks the running app's process manifest.
+For isolated self-tests, build with `-OutputPath '...\Mochi.exe' -NoUpdateManifest -TestHooks`, using an existing output directory. For a staging build, omit `-TestHooks`. Cloud builds use Microsoft's Roslyn compiler against .NET Framework 4.8 reference assemblies; add `MOCHI_MANUAL_RELEASE` for the manual edition, and `MOCHI_TESTS` only for its isolated test build. Avoid Mono's `mcs`: it can omit the required Windows manifest.
 
-To publish an app update:
+To publish a manual-download release:
 
-1. Increase the assembly, file, and informational versions in `Project Files/source/AssemblyInfo.cs`.
-   Add the matching `## x.y.z - Title` entry at the top of [CHANGELOG.md](CHANGELOG.md), with `###` sections and `-` bullet points. The first two bullets become the welcome card's highlights. The build embeds this file for the offline reader; the release-notes checks verify the version matches.
-2. Build a separate `-TestHooks` executable and run the companion (`--self-test`) and updater (`--update-self-test`) checks. Each takes a result-file path as its next argument.
-3. Build the public artifact without test hooks. Verify its Authenticode trust and timestamp, signed update metadata, native resources, final size, and SHA-256.
-4. Commit the verified root `Mochi.exe`, matching `Project Files/update.xml`, and source changes together. Push a signed version tag and publish those exact files as immutable GitHub Release assets after review.
+1. Update the assembly, file and informational versions in `Project Files/source/AssemblyInfo.cs` and the top entry in `CHANGELOG.md`. The first two bullets become the post-update welcome highlights.
+2. Run the companion and updater regression checks in the isolated test build, then verify the final executable's version, native resources and absence of test hooks:
+   `python3 'Project Files/build-tools/verify-package.py' Mochi.exe 'Project Files/source/app.manifest'`.
+3. Commit the tested root `Mochi.exe`, source, documentation and SHA-256 checksum. Publish those exact bytes as GitHub Release assets, with a ZIP containing an enclosing folder and manual installation instructions. Clearly label the release as unsigned. Do not include `update.xml`.
+4. Verify the downloaded assets match the tested executable. Do not replace a published version's assets or reuse its version number for different executable bytes.
 
-Never edit the checksum or signature manually, replace a published version's assets, or reuse a version number for a new executable. Installed clients accept metadata only when its signature matches Mochi's pinned offline key. Documentation-only changes do not trigger an app update.
+The separate `-PublicRelease` mode remains available for **signed automatic updates**. It still requires a trusted Authenticode certificate, timestamp service and the offline update-signing key, as described in the [release-signing guide](Project%20Files/UPDATE-SIGNING.md). Omitting `-ManualRelease` when writing the root executable retains those signing requirements. Runtime signature verification has not been relaxed.
 
 </details>
 

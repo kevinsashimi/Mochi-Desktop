@@ -4,6 +4,7 @@ param(
     [switch]$NoUpdateManifest,
     [switch]$TestHooks,
     [switch]$PublicRelease,
+    [switch]$ManualRelease,
     [string]$UpdateSigningPfxPath=$env:MOCHI_UPDATE_SIGNING_PFX,
     [string]$UpdateSigningPassword=$env:MOCHI_UPDATE_SIGNING_PASSWORD,
     [string]$AuthenticodePfxPath=$env:MOCHI_AUTHENTICODE_PFX,
@@ -82,9 +83,19 @@ if ([IO.Path]::GetFileName($OutputPath) -ne 'Mochi.exe') {
     throw 'Use a staging directory with the filename Mochi.exe so its assembly identity stays consistent.'
 }
 $repositoryOutput=[IO.Path]::GetFullPath("$PSScriptRoot\..\..\Mochi.exe")
-# Writing the repository's distributable executable is always a public release.
-# This prevents an easy-to-miss omitted switch from publishing unsigned code.
-if ($OutputPath -eq $repositoryOutput) { $PublicRelease=$true }
+# Unsigned distribution is an explicit manual-download mode, never an updater
+# package. Omitting that switch keeps the signed-release requirements intact.
+if ($ManualRelease) {
+    if ($PublicRelease -or $TestHooks -or -not [String]::IsNullOrWhiteSpace($UpdateManifestPath)) {
+        throw 'ManualRelease cannot be combined with PublicRelease, TestHooks, or an update manifest.'
+    }
+    if (-not [String]::IsNullOrWhiteSpace($AuthenticodePfxPath) -or
+        -not [String]::IsNullOrWhiteSpace($UpdateSigningPfxPath)) {
+        throw 'ManualRelease must not use signing certificates. Use PublicRelease for signed updates.'
+    }
+    $NoUpdateManifest=$true
+}
+if ($OutputPath -eq $repositoryOutput -and -not $ManualRelease) { $PublicRelease=$true }
 if ($NoUpdateManifest -and -not [String]::IsNullOrWhiteSpace($UpdateManifestPath)) {
     throw 'NoUpdateManifest and UpdateManifestPath cannot be used together.'
 }
@@ -143,16 +154,17 @@ try {
 
     $stageDirectory=Join-Path $outputDirectory ('.mochi-build-'+[Guid]::NewGuid().ToString('N'))
     [IO.Directory]::CreateDirectory($stageDirectory) | Out-Null
-    if ($PublicRelease) { Protect-ReleaseDirectory $stageDirectory }
+    if ($PublicRelease -or $ManualRelease) { Protect-ReleaseDirectory $stageDirectory }
     $buildOutput=Join-Path $stageDirectory 'Mochi.exe'
     $compiler='C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe'
     $compileOptions=@()
     if ($TestHooks) { $compileOptions+='/define:MOCHI_TESTS' }
+    if ($ManualRelease) { $compileOptions+='/define:MOCHI_MANUAL_RELEASE' }
     & $compiler "/resource:$PSScriptRoot\wallpaper\quiet-cove.png,Mochi.Wallpaper.QuietCove" /nologo /target:winexe /optimize+ /platform:anycpu $compileOptions /reference:System.Drawing.dll /reference:System.Windows.Forms.dll /reference:System.Xml.Linq.dll /reference:System.Xml.dll /reference:System.Runtime.Serialization.dll "/resource:$PSScriptRoot\..\..\CHANGELOG.md,Mochi.ReleaseNotes" "/resource:$PSScriptRoot\spritesheet.png,Mochi.Atlas" "/resource:$PSScriptRoot\feeding.png,Mochi.Feeding" "/resource:$PSScriptRoot\snack.png,Mochi.Snack" "/resource:$PSScriptRoot\illustrated-reactions.png,Mochi.Illustrated" "/resource:$PSScriptRoot\boost-poses.png,Mochi.Boost" "/resource:$PSScriptRoot\cleanup-reactions.png,Mochi.Cleanup" "/resource:$PSScriptRoot\ocean-litter.png,Mochi.OceanLitter" "/resource:$PSScriptRoot\ocean-bins.png,Mochi.OceanBins" "/resource:$PSScriptRoot\ocean-open-nets.png,Mochi.OpenNets" "/win32icon:$PSScriptRoot\mochi.ico" "/win32manifest:$PSScriptRoot\app.manifest" "/out:$buildOutput" "$PSScriptRoot\Mochi.cs" "$PSScriptRoot\BackgroundPlacementTests.cs" "$PSScriptRoot\Feeding.cs" "$PSScriptRoot\Gaze.cs" "$PSScriptRoot\Reactions.cs" "$PSScriptRoot\SmoothMotion.cs" "$PSScriptRoot\Facing.cs" "$PSScriptRoot\Destination.cs" "$PSScriptRoot\ManualSwimming.cs" "$PSScriptRoot\ManualBoost.cs" "$PSScriptRoot\BoostAnimation.cs" "$PSScriptRoot\ManualGuide.cs" "$PSScriptRoot\ManualSwimTests.cs" "$PSScriptRoot\AssemblyInfo.cs" "$PSScriptRoot\Updates.cs" "$PSScriptRoot\UpdateTests.cs" "$PSScriptRoot\DesktopIcons.cs" "$PSScriptRoot\Playful.cs" "$PSScriptRoot\PlayfulTests.cs" "$PSScriptRoot\ReleaseNotes.cs" "$PSScriptRoot\ReleaseNotesTests.cs" "$PSScriptRoot\StaticWallpaper.cs" "$PSScriptRoot\DesktopWallpaperHost.cs" "$PSScriptRoot\StaticWallpaperTests.cs" "$PSScriptRoot\SecurityHardeningTests.cs" "$PSScriptRoot\OceanCleanup.cs" "$PSScriptRoot\CleanupTests.cs"
     if ($LASTEXITCODE -ne 0) { throw 'Build failed.' }
 
-    # Authenticode is optional for local/test builds. Public releases should use a
-    # publicly trusted code-signing certificate and timestamp service.
+    # Manual releases omit Authenticode and update metadata. Signed updater
+    # releases retain their publisher and timestamp checks.
     if ($null -ne $authenticodeCertificate) {
         $authenticodeArguments=@{FilePath=$buildOutput;Certificate=$authenticodeCertificate;HashAlgorithm='SHA256';IncludeChain='All'}
         if (-not [String]::IsNullOrWhiteSpace($AuthenticodeTimestampUrl)) {
@@ -287,6 +299,7 @@ try {
         if ($writeManifest -and [IO.File]::Exists($pendingManifest)) { [IO.File]::Delete($pendingManifest) }
     }
     Write-Output "Build written to $OutputPath"
+    if ($ManualRelease) { Write-Output 'Unsigned manual-download release. No update manifest was generated.' }
     if ($writeManifest) { Write-Output "Signed update manifest written to $manifest" }
 } finally {
     if ($null -ne $updateRsa) { $updateRsa.Dispose() }

@@ -311,6 +311,8 @@ namespace MochiDesktop {
                 results.Add("PASS: emitted .NET Framework-compatible TrimEnd(char[]) references; valid temporary updater directories and trailing separators; malformed and nested directories rejected.");
                 Companion.VerifyUpdateMenu();
                 results.Add("PASS: shared pet/tray menu contains Check for updates and Info; displayed version comes from the running assembly.");
+                if (AppVersion.ManualDownloadOnly)
+                    results.Add("PASS: manual-download edition skips startup update checks, queues a user-requested download-page prompt without starting the updater, and clears the notice on cancellation.");
                 File.WriteAllLines(reportPath, results.ToArray());
                 return 0;
             } catch (Exception error) {

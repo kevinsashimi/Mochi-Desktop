@@ -72,6 +72,13 @@ namespace MochiDesktop {
         public static Version Current { get { return Assembly.GetExecutingAssembly().GetName().Version; } }
         public static string Display(Version version) { return version.Revision > 0 ? version.ToString(4) : version.ToString(3); }
         public static string Text { get { return Display(Current); } }
+        public static bool ManualDownloadOnly { get {
+#if MOCHI_MANUAL_RELEASE
+            return true;
+#else
+            return false;
+#endif
+        } }
     }
 
     sealed class UpdateInfo {
@@ -540,7 +547,12 @@ namespace MochiDesktop {
             menu.Items.Add("Info", null, delegate { ShowInfo(); });
         }
         void StartUpdateCheck(bool manual) {
-            if (simulation || closing || IsDisposed) return;
+            if (closing || IsDisposed) return;
+            if (AppVersion.ManualDownloadOnly) {
+                if (manual) { manualUpdateCheck = true; pendingUpdateNotice = ShowManualDownloads; }
+                return;
+            }
+            if (simulation) return;
             if (checkingUpdates) { manualUpdateCheck |= manual; return; }
             checkingUpdates = true; manualUpdateCheck = manual; pendingUpdateNotice = null;
             updateItem.Enabled = false; updateItem.Text = "Checking for updates...";
@@ -578,13 +590,29 @@ namespace MochiDesktop {
             try { MessageBox.Show(message, "Mochi updates", MessageBoxButtons.OK, icon); }
             finally { EndUpdateDialog(); }
         }
+        void ShowManualDownloads() {
+            BeginUpdateDialog();
+            try {
+                if (MessageBox.Show("Mochi Desktop " + AppVersion.Text + " uses manual updates.\n\n" +
+                    "Download the latest Mochi.exe from GitHub. Quit Mochi, then replace only Mochi.exe in the same folder to keep your settings.\n\n" +
+                    "Open the download page?", "Mochi updates", MessageBoxButtons.YesNo, MessageBoxIcon.Information,
+                    MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
+                try { using (Process browser = Process.Start(new ProcessStartInfo(UpdateService.Repository + "/releases/latest") { UseShellExecute = true })) { } }
+                catch (Exception error) {
+                    if (!(error is Win32Exception) && !(error is InvalidOperationException)) throw;
+                    MessageBox.Show("Couldn't open your browser. Visit:\n\n" + UpdateService.Repository + "/releases/latest",
+                        "Mochi updates", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+            } finally { EndUpdateDialog(); }
+        }
         void ShowInfo() {
             BeginUpdateDialog();
             try {
                 MessageBox.Show("Mochi Desktop\nVersion " + AppVersion.Text +
                     "\n\nYour little whale shark companion.\n\n" + UpdateService.Repository +
                     "\n\nRunning from:\n" + Application.ExecutablePath +
-                    "\n\nUse Check for updates to look for a newer version.",
+                    (AppVersion.ManualDownloadOnly ? "\n\nManual-download edition. Use Check for updates to open the download page." :
+                    "\n\nUse Check for updates to look for a newer version."),
                     "About Mochi", MessageBoxButtons.OK, MessageBoxIcon.Information);
             } finally { EndUpdateDialog(); }
         }
@@ -621,6 +649,16 @@ namespace MochiDesktop {
                     if (item.Text == "Info") info++;
                 }
                 if (checks != 1 || info != 1) throw new Exception("Missing or duplicate updater menu entries.");
+                if (AppVersion.ManualDownloadOnly) {
+                    pet.StartUpdateCheck(false);
+                    if (pet.pendingUpdateNotice != null || pet.checkingUpdates || !pet.updateItem.Enabled)
+                        throw new Exception("Manual-download startup launched an update check.");
+                    pet.StartUpdateCheck(true);
+                    if (pet.pendingUpdateNotice == null || !pet.manualUpdateCheck || pet.checkingUpdates || !pet.updateItem.Enabled)
+                        throw new Exception("Manual-download menu did not queue the download-page prompt.");
+                    pet.StopUpdateChecks();
+                    if (pet.pendingUpdateNotice != null) throw new Exception("Manual-download notice survived cancellation.");
+                }
             }
         }
     }

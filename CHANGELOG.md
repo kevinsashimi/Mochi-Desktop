@@ -12,6 +12,7 @@ Small updates for your little ocean. These notes are also available offline in S
 - Mochi stops beside the Ocean Bin for a clear handoff. Scene layers stay in order, and closing a right-click menu promptly restores desktop placement. His own menu pauses and resumes a cleanup.
 - Cleanups wait their turn every 4–7 minutes, respect Pause swimming, and can be disabled in Settings. Choose Clean the ocean from the menu to try one immediately.
 - Cleanup litter is animated artwork; it never creates, deletes, recycles, or moves your files or desktop icons.
+- This release is an unsigned manual download. Check for updates opens a prompt for the GitHub download page; replace Mochi.exe in the same folder to keep your settings.
 
 ## 1.2.13 - Safer currents, steadier swims
 

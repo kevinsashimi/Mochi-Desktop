@@ -1,6 +1,9 @@
 # Release and update signing
 
-Mochi uses two independent signatures for public releases:
+Mochi supports unsigned manual-download releases and signed automatic updates.
+Version 1.2.14 is distributed as an **unsigned manual download**.
+
+Signed automatic-update releases use two independent signatures:
 
 - **Authenticode** identifies the publisher of the downloaded `Mochi.exe` and
   protects the first download. Use a currently valid certificate from a trusted
@@ -15,6 +18,33 @@ an offline vault or hardware-backed CI secret. Restrict the Authenticode key to
 the release job. Losing the update key requires a manually installed version to
 establish a new trust root; rotate it through an update signed by the old key
 whenever possible.
+
+## Unsigned manual-download releases
+
+The project owner has chosen unsigned manual distribution for version 1.2.14.
+No signing certificate or update-signing key is needed for this mode:
+
+```powershell
+& '.\Project Files\source\build.ps1' -ManualRelease
+```
+
+This explicitly allows an unsigned repository-root `Mochi.exe` and compiles
+`MOCHI_MANUAL_RELEASE`. The app makes no startup update request. **Check for
+updates** offers to open the official GitHub download page; it does not download
+or install executable code. Users quit Mochi and replace only `Mochi.exe` in the
+same folder to preserve settings. Windows may show an unknown-publisher warning.
+
+The mode rejects `-PublicRelease`, `-TestHooks`, an update-manifest path, and
+signing PFX configuration. It generates no update manifest. The obsolete 1.2.12
+metadata has been removed from the repository so it cannot be mistaken for
+metadata matching the new executable. Publish only the executable, a ZIP with
+an enclosing folder, manual installation notes and SHA-256 checksums. Checksums
+identify the exact download; they do not substitute for a publisher signature.
+
+Verify the executable with `verify-package.py` without `--update-manifest` or
+`--require-certificate-table`. Verify the managed/native version, no test hooks,
+and downloaded asset hashes. No signature-validation code is bypassed: signed
+updates continue to reject missing, forged or mismatched metadata.
 
 ## Build modes
 
@@ -31,8 +61,8 @@ production update key is available only to `-PublicRelease` builds, which also
 require trusted Authenticode signing. Internal previews never receive a
 production update signature.
 
-Writing the repository-root `Mochi.exe` automatically enables public-release
-rules. The build then fails before compilation unless both signing identities
+Writing the repository-root `Mochi.exe` without `-ManualRelease` automatically
+enables signed-public-release rules. The build then fails before compilation unless both signing identities
 are configured. Prefer process-scoped environment variables so passwords are
 not placed in shell history:
 
@@ -63,7 +93,7 @@ Sha256=<lowercase hexadecimal SHA-256>
 The final line also ends with `\n`. The XML `Signature` element contains the
 base64-encoded signature of those UTF-8 bytes.
 
-## Release verification
+## Signed-release verification
 
 Run the package verifier against the finished executable and signed manifest:
 
