@@ -69,6 +69,7 @@ namespace MochiDesktop {
                 if(TestHookMarker.Length==0)throw new InvalidOperationException("Test hook marker is missing.");
                 if (args.Length == 2 && args[0] == "--update-self-test") return UpdateTests.Run(args[1]);
                 if (args.Length == 2 && args[0] == "--cleanup-self-test") return CleanupTests.Run(args[1]);
+                if (args.Length == 2 && args[0] == "--swim-continuity-self-test") return SwimContinuityTests.Run(args[1]);
                 if (args.Length == 2 && args[0] == "--cleanup-preview") { CleanupTests.Preview(args[1]); return 0; }
                 if (args.Length == 2 && args[0] == "--playful-self-test") return PlayfulTests.Run(args[1]);
                 if (args.Length == 2 && args[0] == "--wallpaper-preview") return StaticWallpaperTests.Preview(args[1]);
@@ -330,6 +331,17 @@ namespace MochiDesktop {
     }
 
     sealed partial class Companion : Form {
+        // The scene HWND can cover an entire monitor during Ocean Cleanup.
+        // Keep character geometry independent of native moves/resizes, including
+        // shell restoration and delayed window-position notifications.
+        Point petLocation;
+        internal Point PetLocation {
+            get{return cleanup==null?petLocation:cleanup.Position;}
+            set{petLocation=value;if(!IsHandleCreated)base.Location=value;}
+        }
+        Size PetSize {get{return Renderer.WindowSize(prefs.Size);}}
+        Rectangle PetBounds {get{return new Rectangle(PetLocation,PetSize);}}
+        bool presentingBitmap;
         readonly Atlas atlas=new Atlas(); readonly Preferences prefs; readonly Random random;
         StaticWallpaper wallpaper;
         static readonly FeedKind[] SurpriseFeeds=(FeedKind[])Enum.GetValues(typeof(FeedKind));
@@ -386,7 +398,7 @@ namespace MochiDesktop {
             Text="Mochi Desktop Companion"; AccessibleName="Mochi whale shark companion"; FormBorderStyle=FormBorderStyle.None;
             ShowInTaskbar=Program.TestUi; TopMost=false; StartPosition=FormStartPosition.Manual; Size=Renderer.WindowSize(prefs.Size);
             Rectangle[] areas=Array.ConvertAll(Screen.AllScreens,delegate(Screen screen){return screen.WorkingArea;});
-            Location=Spawn.PickLocation(random,Size,areas);
+            PetLocation=Spawn.PickLocation(random,PetSize,areas);
             faceRight=random.Next(2)==1;
             BuildMenu();
             ScheduleIdleActivity();
@@ -517,7 +529,7 @@ namespace MochiDesktop {
             StopPicking();
             startupHintAt=-1;
             gaze.Reset();reaction=null;swimming=false;bubble="";bubbleUntil=0;
-            feeding=new FeedSequence(kind,Now,Location,Size,Screen.FromRectangle(Bounds).WorkingArea,right??(random.Next(2)==1));Face(feeding.FaceRight);
+            feeding=new FeedSequence(kind,Now,PetLocation,PetSize,Screen.FromRectangle(PetBounds).WorkingArea,right??(random.Next(2)==1));Face(feeding.FaceRight);
             idleActivityActive=automatic;
             actionUntil=Now+feeding.Duration;Save();Schedule();Render();
         }
@@ -538,7 +550,7 @@ namespace MochiDesktop {
             if(e.Button==MouseButtons.Right){swimming=false;menu.Show(Cursor.Position);return;}
             if(e.Button!=MouseButtons.Left)return;
             CancelInteraction();
-            down=true;dragging=false;swimming=false;dragMouse=Cursor.Position;dragWindow=Location;if(!simulation)Capture=true;
+            down=true;dragging=false;swimming=false;dragMouse=Cursor.Position;dragWindow=PetLocation;if(!simulation)Capture=true;
         }
         string PickLine(string[] lines,ref int previous){
             int pick=random.Next(previous<0?lines.Length:lines.Length-1);
@@ -549,9 +561,9 @@ namespace MochiDesktop {
         void TrackDrag(Point p){
             if(!down)return;int dx=p.X-dragMouse.X,dy=p.Y-dragMouse.Y;
             if(!dragging && Math.Abs(dx)+Math.Abs(dy)>5){CancelRegularAnimation();dragging=true;bubble=PickLine(DragLines,ref lastDragLine);bubbleUntil=Now+4;}
-            if(dragging)MoveDragged(Motion.Clamp(new Point(dragWindow.X+dx,dragWindow.Y+dy),Size,Screen.FromPoint(p).WorkingArea));
+            if(dragging)MoveDragged(Motion.Clamp(new Point(dragWindow.X+dx,dragWindow.Y+dy),PetSize,Screen.FromPoint(p).WorkingArea));
         }
-        void MoveDragged(Point position){FaceTravel(position.X-Left);Location=position;row=faceRight?1:2;}
+        void MoveDragged(Point position){FaceTravel(position.X-PetLocation.X);PetLocation=position;row=faceRight?1:2;}
         void OnUp(object s,MouseEventArgs e){
             if(e.Button!=MouseButtons.Left || !down)return;bool wasDragging=dragging;down=false;dragging=false;Capture=false;
             edgeWatch.Reset(Now);
@@ -566,9 +578,9 @@ namespace MochiDesktop {
             StopPicking();
             if(requested)startupHintAt=-1;
             gaze.Reset();feeding=null;reaction=null;
-            Rectangle b=Screen.FromRectangle(Bounds).WorkingArea;
-            swimPath=new SwimPath(Location,Size,b,random,edgeWatch.Due);Point target=swimPath.End;
-            if(Math.Abs(target.X-Left)+Math.Abs(target.Y-Top)<15){Schedule();return;}
+            Rectangle b=Screen.FromRectangle(PetBounds).WorkingArea;
+            swimPath=new SwimPath(PetLocation,PetSize,b,random,edgeWatch.Due);Point target=swimPath.End;
+            if(Math.Abs(target.X-PetLocation.X)+Math.Abs(target.Y-PetLocation.Y)<15){Schedule();return;}
             if(swimPath.Escaping || requested)edgeWatch.Reset(Now);
             StartSwimPath(swimPath,b,false);
         }
@@ -579,7 +591,22 @@ namespace MochiDesktop {
             if(Program.SettingsRequest!=null && Program.SettingsRequest.WaitOne(0) && !modal){OpenSettings();return;}
             PumpReleaseWelcome();
             RefreshBackgroundIfDue();
-            Advance(Now,Cursor.Position);
+            AdvanceFrame(Now,Cursor.Position);
+        }
+        double lastSwimFrame;
+        void AdvanceFrame(double now,Point cursor){
+            if(swimming){
+                // A busy desktop, suspend/resume or a blocked UI thread can miss
+                // many timer ticks. Do not catch up that unseen travel in one
+                // frame. Keep the same path and easing, stretching its deadline
+                // only for time we could not animate (normal 20+ fps is unchanged).
+                now=Math.Max(now,lastSwimFrame);
+                double elapsed=now-lastSwimFrame;
+                double visible=closing || modal || menu.Visible?0:Math.Min(elapsed,.05);
+                travelStart+=elapsed-visible;
+                lastSwimFrame=now;
+            }
+            Advance(now,cursor);
         }
         void Advance(double now,Point cursor){
             if(simulation)simulatedTime=now;
@@ -594,29 +621,29 @@ namespace MochiDesktop {
                 EndRegularAnimation();reaction=null;row=0;frame=0;actionStart=now;actionUntil=now+.4;Schedule();
             }
             if(feeding!=null){
-                Location=Motion.Clamp(feeding.Position(now),Size,Screen.FromRectangle(Bounds).WorkingArea);
+                PetLocation=Motion.Clamp(feeding.Position(now),PetSize,Screen.FromRectangle(PetBounds).WorkingArea);
                 if(!feeding.Finished(now)){Render();return;}
                 EndRegularAnimation();feeding=null;row=0;frame=0;actionStart=now;actionUntil=now+0.4;Schedule();Save();
             }
             if(now>bubbleUntil && bubble.Length>0){bubble="";}
-            if(!down && prefs.Roam)edgeWatch.Update(Location,Size,Screen.FromRectangle(Bounds).WorkingArea,now);
+            if(!down && prefs.Roam)edgeWatch.Update(PetLocation,PetSize,Screen.FromRectangle(PetBounds).WorkingArea,now);
             else edgeWatch.Reset(now);
             if(swimming){
                 double t=(now-travelStart)/travelDuration;
-                PointF position=swimPath.Position(t);Location=Motion.Clamp(Point.Round(position),Size,swimBounds);
-                swimFraction=new PointF(position.X-Left,position.Y-Top);
+                PointF position=swimPath.Position(t);PetLocation=Motion.Clamp(Point.Round(position),PetSize,swimBounds);
+                swimFraction=new PointF(position.X-PetLocation.X,position.Y-PetLocation.Y);
                 PointF heading=swimPath.Heading(t);swimGaze.Update(heading.X,heading.Y,now);
                 if(now>=travelStart+travelDuration){
-                    bool arrived=guidedSwim;swimming=false;guidedSwim=false;Location=swimTo;
+                    bool arrived=guidedSwim;swimming=false;guidedSwim=false;PetLocation=swimTo;
                     PauseAutomaticActivities();
                     if(arrived)Act(0,PickLine(ArrivalLines,ref lastArrivalLine),2.5);else Schedule();Save();
                 }
             }
             if(!swimming&&!down&&now>=actionUntil){
                 if(StartDueActivity(now))return;
-                Point c=cursor;Rectangle sprite=Renderer.SpriteRect(prefs.Size);Point center=new Point(Left+sprite.Left+sprite.Width/2,Top+sprite.Top+sprite.Height/2);
+                Point c=cursor;Rectangle sprite=Renderer.SpriteRect(prefs.Size);Point center=new Point(PetLocation.X+sprite.Left+sprite.Width/2,PetLocation.Y+sprite.Top+sprite.Height/2);
                 double dx=c.X-center.X,dy=c.Y-center.Y,dist=Math.Sqrt(dx*dx+dy*dy);
-                if(dist>65 && dist<390 && Screen.FromPoint(c).DeviceName==Screen.FromRectangle(Bounds).DeviceName){
+                if(dist>65 && dist<390 && Screen.FromPoint(c).DeviceName==Screen.FromRectangle(PetBounds).DeviceName){
                     gaze.Update(dx,dy,now);
                     // Keep the last visible side when gaze ends; vertical poses retain it.
                     if(gaze.Direction%8!=0)Face(gaze.Direction<8);
@@ -641,7 +668,7 @@ namespace MochiDesktop {
         bool Render(double? frameTime=null){
             double now=frameTime??Now;
             if(!IsHandleCreated || now<nextRenderAttempt)return false;
-            Bitmap next=null,hit=null;Point at=Location,hitAt=Point.Empty;
+            Bitmap next=null,hit=null;Point at=PetLocation,hitAt=Point.Empty;
             try{
                 if(cleanup!=null){
                     hit=CleanupArt.Pet(atlas,cleanup,now);hitAt=cleanup.Position;
@@ -652,8 +679,13 @@ namespace MochiDesktop {
                     CleanupArt.Scene(atlas,cleanup,now,hit,bounds,next);
                 }else next=RenderFrame();
                 // Position, size and every scene pixel change in the same native
-                // upload; do not move the old cleanup bitmap with Location first.
-                bitmapPresentation(Handle,next,at,255);
+                // upload; do not move the old cleanup bitmap with PetLocation first.
+                presentingBitmap=true;
+                try{bitmapPresentation(Handle,next,at,255);}finally{presentingBitmap=false;}
+                // UpdateLayeredWindow can change native bounds without updating
+                // WinForms' cached Location/Size. Refresh that cache after the
+                // successful upload; it remains presentation data, not swim state.
+                UpdateBounds();
             }
             catch(System.ComponentModel.Win32Exception){if(next!=null)next.Dispose();if(hit!=null)hit.Dispose();nextRenderAttempt=now+NativeRetryDelay;return false;}
             catch{if(next!=null)next.Dispose();if(hit!=null)hit.Dispose();throw;}
@@ -665,18 +697,26 @@ namespace MochiDesktop {
             UpdateCleanupInput();
             return true;
         }
-        void DisplayChanged(object sender,EventArgs e){if(IsDisposed)return;try{BeginInvoke((Action)delegate{StopManualSwimming();CancelPlayful();CancelCleanup();StopPicking();swimming=false;guidedSwim=false;Location=Motion.Clamp(Location,Size,Screen.FromRectangle(Bounds).WorkingArea);Schedule();SchedulePlayful();});}catch(InvalidOperationException){} }
-        void Save(){if(simulation)return;Point at=cleanup!=null?cleanup.Position:Location;prefs.X=at.X;prefs.Y=at.Y;prefs.Save();}
+        void DisplayChanged(object sender,EventArgs e){if(IsDisposed)return;try{BeginInvoke((Action)delegate{StopManualSwimming();CancelPlayful();CancelCleanup();StopPicking();swimming=false;guidedSwim=false;PetLocation=Motion.Clamp(PetLocation,PetSize,Screen.FromRectangle(PetBounds).WorkingArea);Schedule();SchedulePlayful();});}catch(InvalidOperationException){} }
+        void Save(){if(simulation)return;Point at=cleanup!=null?cleanup.Position:PetLocation;prefs.X=at.X;prefs.Y=at.Y;prefs.Save();}
         void OpenSettings(){
             CloseReleaseWelcome();
             bool wasEnabled=prefs.PlayfulMode,wasCleanup=prefs.OceanCleanup,tryPlayful=false;
             CancelInteraction();swimming=false;modal=true;
-            try{using(SettingsDialog d=new SettingsDialog(prefs,GetPlayfulStatus,delegate{return wallpaper==null?"Quiet Cove is off.":wallpaper.GetStatus();})){if(d.ShowDialog()==DialogResult.OK){Size=Renderer.WindowSize(prefs.Size);Location=Motion.Clamp(Location,Size,Screen.FromRectangle(Bounds).WorkingArea);tryPlayful=d.TryPlayfulRequested;if(wallpaper!=null)wallpaper.SetEnabled(prefs.StaticWallpaper);Save();}}}
+            try{using(SettingsDialog d=new SettingsDialog(prefs,GetPlayfulStatus,delegate{return wallpaper==null?"Quiet Cove is off.":wallpaper.GetStatus();})){if(d.ShowDialog()==DialogResult.OK){PetLocation=Motion.Clamp(PetLocation,PetSize,Screen.FromRectangle(PetBounds).WorkingArea);tryPlayful=d.TryPlayfulRequested;if(wallpaper!=null)wallpaper.SetEnabled(prefs.StaticWallpaper);Save();}}}
             finally{modal=false;Schedule();PauseAutomaticActivities();ApplyPlayfulSettings(wasEnabled,tryPlayful);if(wasCleanup!=prefs.OceanCleanup)ScheduleCleanup();edgeWatch.Reset(Now);}
         }
         void Help(){swimming=false;modal=true;try{MessageBox.Show("Click Mochi for a random petting, play, or snack animation.\nDrag Mochi to move to another spot or monitor.\nMove your pointer nearby and Mochi will look toward it.\n\nRight-click Mochi or the tray icon to choose petting, feeding, play, swimming, settings, or Quit.\nClick the tray icon to open the controls.\nChoose Come here, then click a spot for Mochi to swim to.\nPress Escape or right-click to cancel choosing a spot.\nChoose Manual mode to steer with WASD or arrow keys. Hold two directions for diagonal swimming.\nTap Space for a short bubble boost; the meter shows its 5-second recharge.\nEscape, right-click, or switching apps ends Manual mode.\n\nEvery 1-3 minutes, Mochi takes turns snacking, enjoying a pat, and playing (Idle Activities). Playful Mode has its own clock. Due animations wait their turn, with a 3-second pause between them.\n\nOcean Cleanup brings a piece of drifting litter every 4-7 minutes. Mochi gathers courage and carries it to his own Ocean Bin. Twelve colorful litter designs and six Ocean Bins bring variety; the bin appears at a new spot on the current screen each time. This is an animation; no files are created or deleted. Pause swimming also pauses automatic cleanups. Try Clean the ocean from the menu anytime.\n\nMochi occasionally swims within the current screen.\nSettings lets you pause swimming or change its frequency, size, and Windows startup.\nQuiet Cove is an optional static ocean wallpaper, off by default. Turn it on in Settings and choose Save. Turning it off or quitting Mochi reveals your usual wallpaper.\n\nEnable Playful Mode in Settings for a little mischief: every 3-5 minutes, Mochi borrows a desktop icon and swims it to a new spot. Files stay in place. Turn off Auto arrange icons on your desktop to allow this.\n\nMochi runs locally. Only update checks and downloads use the internet. No account or microphone is needed.","Hello, I'm Mochi",MessageBoxButtons.OK,MessageBoxIcon.Information);}finally{modal=false;Schedule();PauseAutomaticActivities();}}
         protected override void WndProc(ref Message m){
             if(m.Msg==BackgroundRefreshMessage){RefreshBackgroundIfDue();m.Result=IntPtr.Zero;return;}
+            // Only the frame presenter owns position and size once pixels are
+            // visible. A shell/WinForms move must not relocate an old bitmap or
+            // turn the full-screen cleanup surface into Mochi's next swim bounds.
+            if(m.Msg==0x46 && m.LParam!=IntPtr.Zero && canvas!=null && !presentingBitmap && !closing && !resourcesDisposed){
+                Native.WindowPosition p=(Native.WindowPosition)Marshal.PtrToStructure(m.LParam,typeof(Native.WindowPosition));
+                p.flags|=0x3; // SWP_NOSIZE | SWP_NOMOVE; z-order/visibility remain available.
+                Marshal.StructureToPtr(p,m.LParam,false);
+            }
             if(manualSwim==null)Native.PreserveBackgroundOrder(ref m);
             // The layered bitmap owns this form's pixels, including its expanded
             // cleanup scene. Default GDI painting must not overwrite that frame.
@@ -685,7 +725,7 @@ namespace MochiDesktop {
             if(m.Msg==0x318){m.Result=IntPtr.Zero;return;}
             if(m.Msg==0x21){m.Result=new IntPtr(3);return;} // MA_NOACTIVATE: petting never steals typing focus.
             if(m.Msg==0x84 && manualSwim!=null){m.Result=new IntPtr(-1);return;} // Steering overlay owns clicks until exit.
-            if(m.Msg==0x84 && cleanup!=null && !down){
+            if(m.Msg==0x84 && cleanupHitFrame!=null && !down){
                 long lp=m.LParam.ToInt64();Point screen=new Point((short)(lp&0xffff),(short)((lp>>16)&0xffff));
                 m.Result=new IntPtr(CleanupHit(screen)?1:-1);return; // Only Mochi, never litter/bin/empty space, receives input.
             }
@@ -698,7 +738,7 @@ namespace MochiDesktop {
         protected override void OnFormClosing(FormClosingEventArgs e){closing=true;StopManualSwimming();if(wallpaper!=null){wallpaper.Dispose();wallpaper=null;}CloseReleaseWelcome();CancelPlayful();CancelCleanup();StopUpdateChecks();StopPicking();timer.Stop();Save();base.OnFormClosing(e);}
         protected override void Dispose(bool disposing){
             if(disposing && !resourcesDisposed){resourcesDisposed=true;if(backgroundEvents!=null){backgroundEvents.Dispose();backgroundEvents=null;}StopManualSwimming();if(wallpaper!=null){wallpaper.Dispose();wallpaper=null;}CloseReleaseWelcome();CancelPlayful();CancelCleanup();StopUpdateChecks();StopPicking();Microsoft.Win32.SystemEvents.DisplaySettingsChanged-=DisplayChanged;
-                timer.Dispose();if(tray!=null){tray.Visible=false;tray.Dispose();}if(trayIcon!=null)trayIcon.Dispose();if(menu!=null)menu.Dispose();if(canvas!=null)canvas.Dispose();atlas.Dispose();}
+                timer.Dispose();if(tray!=null){tray.Visible=false;tray.Dispose();}if(trayIcon!=null)trayIcon.Dispose();if(menu!=null)menu.Dispose();if(canvas!=null)canvas.Dispose();if(cleanupHitFrame!=null){cleanupHitFrame.Dispose();cleanupHitFrame=null;}atlas.Dispose();}
             base.Dispose(disposing);
         }
         public static void VerifyWelcome(){
@@ -742,7 +782,7 @@ namespace MochiDesktop {
             using(Companion pet=new Companion(true)){
                 pet.nextIdleActivity=Double.PositiveInfinity;
                 Rectangle area=Screen.PrimaryScreen.WorkingArea;
-                pet.Location=Motion.Clamp(new Point(area.Left+area.Width/2-pet.Width/2,area.Top+area.Height/2-pet.Height/2),pet.Size,area);
+                pet.PetLocation=Motion.Clamp(new Point(area.Left+area.Width/2-pet.Width/2,area.Top+area.Height/2-pet.Height/2),pet.Size,area);
                 pet.prefs.Frequency=2;
                 Rectangle sprite=Renderer.SpriteRect(pet.prefs.Size);
                 Point parked=new Point(pet.Left+sprite.Left+sprite.Width/2,pet.Top+sprite.Top+sprite.Height/2);
@@ -762,7 +802,7 @@ namespace MochiDesktop {
                 }
                 pet.prefs.Roam=false;pet.nextSwim=0;pet.Advance(pet.Now+30,parked);
                 if(pet.swimming)throw new Exception("Pause ignored");
-                pet.Location=Motion.Clamp(new Point(area.Left+area.Width/2-pet.Width/2,area.Top+area.Height/2-pet.Height/2),pet.Size,area);
+                pet.PetLocation=Motion.Clamp(new Point(area.Left+area.Width/2-pet.Width/2,area.Top+area.Height/2-pet.Height/2),pet.Size,area);
                 Point center=new Point(pet.Left+sprite.Left+sprite.Width/2,pet.Top+sprite.Top+sprite.Height/2);
                 for(int direction=0;direction<16;direction++){
                     double angle=direction*Math.PI/8;
@@ -835,7 +875,7 @@ namespace MochiDesktop {
         public static void VerifyEdgeBehavior(){
             using(Companion pet=new Companion(true)){
                 Rectangle area=Screen.PrimaryScreen.WorkingArea;
-                pet.Location=Motion.Clamp(new Point(area.Left,area.Top),pet.Size,area);
+                pet.PetLocation=Motion.Clamp(new Point(area.Left,area.Top),pet.Size,area);
                 pet.prefs.Frequency=0;pet.nextSwim=10000;pet.nextIdleActivity=Double.PositiveInfinity;pet.edgeWatch.Reset(0);
                 Point away=new Point(-10000,-10000);
                 for(int i=1;i<=52 && !pet.swimming;i++)pet.Advance(i*.5,away);
@@ -844,7 +884,7 @@ namespace MochiDesktop {
                 if(pet.nextIdleActivity!=Double.PositiveInfinity)throw new Exception("Border escape reset idle activity timer");
                 pet.Advance(pet.travelStart+pet.travelDuration,away);
                 if(pet.swimming || EdgeWatch.Near(pet.Location,pet.Size,area))throw new Exception("Border escape failed to reach open water");
-                pet.Location=new Point(area.Left,area.Top);pet.prefs.Roam=false;pet.nextSwim=0;
+                pet.PetLocation=new Point(area.Left,area.Top);pet.prefs.Roam=false;pet.nextSwim=0;
                 for(int i=0;i<60;i++)pet.Advance(pet.Now+.5,away);
                 if(pet.swimming)throw new Exception("Border escape ignored Pause swimming");
                 pet.prefs.Roam=true;pet.nextSwim=10000;pet.down=true;
@@ -907,7 +947,7 @@ namespace MochiDesktop {
                 pet.Advance(pet.feeding.Started+pet.feeding.Duration,away);
                 pet.prefs.Roam=false;
                 Rectangle area=Screen.PrimaryScreen.WorkingArea;
-                pet.Location=Motion.Clamp(new Point(area.Left+area.Width/2-pet.Width/2,area.Top+area.Height/2-pet.Height/2),pet.Size,area);
+                pet.PetLocation=Motion.Clamp(new Point(area.Left+area.Width/2-pet.Width/2,area.Top+area.Height/2-pet.Height/2),pet.Size,area);
                 Rectangle sprite=Renderer.SpriteRect(pet.prefs.Size);
                 Point nearby=new Point(pet.Left+sprite.Left+sprite.Width/2+130,pet.Top+sprite.Top+sprite.Height/2);
                 originalDue=pet.nextIdleActivity;pet.Advance(pet.Now+1,nearby);
@@ -1194,6 +1234,8 @@ namespace MochiDesktop {
                     throw new Exception("Ocean Cleanup tests failed; see cleanup-test-results.txt.");
                 if(SecurityHardeningTests.Run(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(path)),"security-test-results.txt"))!=0)
                     throw new Exception("Security hardening tests failed; see security-test-results.txt.");
+                if(SwimContinuityTests.Run(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(path)),"swim-continuity-test-results.txt"))!=0)
+                    throw new Exception("Swim continuity tests failed; see swim-continuity-test-results.txt.");
 #endif
                 Check(Motion.Direction(0,-1)==0,"up cardinal");Check(Motion.Direction(1,0)==4,"right cardinal");Check(Motion.Direction(0,1)==8,"down cardinal");Check(Motion.Direction(-1,0)==12,"left cardinal");
                 for(int i=0;i<16;i++){double a=i*Math.PI/8;Check(Motion.Direction(Math.Sin(a),-Math.Cos(a))==i,"direction mapping "+i);}

@@ -12,6 +12,8 @@ Mochi stays **behind your app windows**, so he can keep you company while you wo
 
 **[Download Mochi.exe 1.2.15](https://github.com/kevinsashimi/Mochi-Desktop/releases/latest/download/Mochi.exe)** · [Get started](#1-bring-mochi-home) · [Learn the controls](#2-say-hello) · [What's New](CHANGELOG.md)
 
+The repository's [Mochi.exe](Mochi.exe) is **1.2.16**, including the tested fix for jumps to the top-left corner and skipped swimming frames. The latest published release is **1.2.15**; the release download above will change when a new release is published.
+
 ## A few of Mochi's moves
 
 Snacks, happy wiggles, and a little showing off. These are some of the animations you can see in the app:
@@ -156,7 +158,7 @@ Playful Mode and the snack / pat / play cycle keep their own clocks, so you stil
 
 ## Keeping Mochi up to date
 
-Version **1.2.15** is a manual-download release. Mochi checks for newer **published releases** at startup, and whenever you choose **Check for updates** from his menu. If one is available, he offers to open its official GitHub release page. Explicit checks also tell you when you are up to date, when no release has been published yet, or when GitHub cannot be reached. Routine startup results and connection failures stay quiet. Drafts and previews are excluded. Choose **Info** to see your current version.
+This manual-download edition checks for newer **published releases** at startup, and whenever you choose **Check for updates** from Mochi's menu. If one is available, he offers to open its official GitHub release page. Explicit checks also tell you when you are up to date, when no release has been published yet, or when GitHub cannot be reached. Routine startup results and connection failures stay quiet. Drafts and previews are excluded. Choose **Info** to see your current version.
 
 To update, download the new `Mochi.exe`, choose **Quit Mochi**, replace only `Mochi.exe` in the same folder, then run it again. Keep your settings and `Project Files` folder. If an older copy's built-in updater fails, use these same manual steps.
 

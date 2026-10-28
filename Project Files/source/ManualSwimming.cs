@@ -220,8 +220,8 @@ namespace MochiDesktop {
             if(closing || modal)return;
             CancelInteraction();CloseReleaseWelcome();down=dragging=false;Capture=false;
             swimming=guidedSwim=false;startupHintAt=-1;gaze.Reset();swimGaze.Reset();edgeWatch.Reset(Now);
-            Rectangle area=Screen.FromRectangle(Bounds).Bounds;
-            manualSwim=new ManualSwimMotion(Location,Size,area,Now,faceRight,nextManualBoostAt);Location=Point.Round(manualSwim.Position);
+            Rectangle area=Screen.FromRectangle(PetBounds).Bounds;
+            manualSwim=new ManualSwimMotion(PetLocation,PetSize,area,Now,faceRight,nextManualBoostAt);PetLocation=Point.Round(manualSwim.Position);
             manualWake=new ManualBoostWake(area,simulation?new Random(502):new Random());
             EnsureManualNativeActions();nextManualGuideAttempt=nextManualWakeAttempt=0;manualPetNeedsPlacement=manualWakeNeedsPlacement=false;
             row=frame=0;actionStart=Now;actionUntil=0;bubble="You're the captain!\nI'll bring the fins.";bubbleUntil=Now+3.5;
@@ -246,7 +246,7 @@ namespace MochiDesktop {
             ManualSwimOverlay overlay=manualOverlay;manualOverlay=null;if(overlay!=null)overlay.Dismiss();
             swimGaze.Reset();swimFraction=PointF.Empty;row=frame=0;actionStart=Now;actionUntil=0;bubble="";bubbleUntil=0;
             edgeWatch.Reset(Now);Schedule();PauseAutomaticActivities();
-            Location=Motion.Clamp(Location,Size,Screen.FromRectangle(Bounds).WorkingArea);
+            PetLocation=Motion.Clamp(PetLocation,PetSize,Screen.FromRectangle(PetBounds).WorkingArea);
             if(!simulation && IsHandleCreated && !IsDisposed){TopMost=false;KeepBehindApps();Render();}
             // Closing a WinForms tool window can activate its previous sibling.
             // Preserve the app the user already switched to, if that happened here.
@@ -281,7 +281,7 @@ namespace MochiDesktop {
             if(now<nextManualGuideAttempt || manualOverlay==null)return;
             try{
                 if(manualPetNeedsPlacement){manualPetPlacement();manualPetNeedsPlacement=false;}
-                if(advance){Rectangle visible=manualBodyBounds;visible.Offset(Location);manualOverlay.AdvanceGuide(now,cursor,visible);}
+                if(advance){Rectangle visible=manualBodyBounds;visible.Offset(PetLocation);manualOverlay.AdvanceGuide(now,cursor,visible);}
                 manualGuidePlacement(manualOverlay,Handle);nextManualGuideAttempt=0;
             }catch(Win32Exception){nextManualGuideAttempt=now+NativeRetryDelay;}
         }
@@ -289,7 +289,7 @@ namespace MochiDesktop {
             if(manualBody!=null)manualBody.Dispose();manualBody=DrawManualBody();
             manualBodyBounds=ManualBodyGeometry.Measure(manualBody);
             manualSwim.SetBodyBounds(manualBodyBounds);PointF position=manualSwim.Position;
-            Location=Point.Round(position);swimFraction=new PointF(position.X-Left,position.Y-Top);
+            PetLocation=Point.Round(position);swimFraction=new PointF(position.X-PetLocation.X,position.Y-PetLocation.Y);
         }
         Bitmap DrawManualBody(){
             Bitmap frame;
@@ -307,7 +307,7 @@ namespace MochiDesktop {
         }
         Bitmap RenderManualFrame(){
             Bitmap frame=swimFraction==PointF.Empty?(Bitmap)manualBody.Clone():new Bitmap(manualBody.Width,manualBody.Height);
-            Rectangle viewport=Rectangle.Intersect(new Rectangle(Point.Empty,frame.Size),new Rectangle(manualSwim.Area.Left-Left,manualSwim.Area.Top-Top,manualSwim.Area.Width,manualSwim.Area.Height));
+            Rectangle viewport=Rectangle.Intersect(new Rectangle(Point.Empty,frame.Size),new Rectangle(manualSwim.Area.Left-PetLocation.X,manualSwim.Area.Top-PetLocation.Y,manualSwim.Area.Width,manualSwim.Area.Height));
             using(Graphics g=Graphics.FromImage(frame)){
                 g.SmoothingMode=System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
                 if(swimFraction!=PointF.Empty)g.DrawImage(manualBody,swimFraction.X,swimFraction.Y);

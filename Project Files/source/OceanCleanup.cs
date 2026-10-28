@@ -326,13 +326,13 @@ namespace MochiDesktop {
         bool BeginCleanup(bool requested=false){
             if(down || modal || manualSwim!=null)return false;
             if(requested)CancelInteraction();
-            Rectangle area=Screen.FromRectangle(Bounds).WorkingArea;
-            if(area.Width<Size.Width || area.Height<Size.Height){ScheduleCleanup();return false;}
+            Rectangle area=Screen.FromRectangle(PetBounds).WorkingArea;
+            if(area.Width<PetSize.Width || area.Height<PetSize.Height){ScheduleCleanup();return false;}
             CancelRegularAnimation();gaze.Reset();swimming=false;guidedSwim=false;startupHintAt=-1;bubble="";
             int kind=random.Next(lastLitter<0?4:3);if(lastLitter>=0 && kind>=lastLitter)kind++;lastLitter=kind;
             int variant=random.Next(lastLitterVariant[kind]<0?3:2);if(lastLitterVariant[kind]>=0 && variant>=lastLitterVariant[kind])variant++;
             int bin=random.Next(lastOceanBin<0?6:5);if(lastOceanBin>=0 && bin>=lastOceanBin)bin++;
-            cleanup=new CleanupTrip(Location,prefs.Size,area,random,(OceanLitter)kind,random.Next(3),Now,variant,bin,lastOceanBinPosition);
+            cleanup=new CleanupTrip(PetLocation,prefs.Size,area,random,(OceanLitter)kind,random.Next(3),Now,variant,bin,lastOceanBinPosition);
             lastLitterVariant[kind]=variant;lastOceanBin=bin;lastOceanBinPosition=cleanup.Bin;
             cleanupLastTick=Now;Render();return true;
         }
@@ -340,11 +340,12 @@ namespace MochiDesktop {
             if(cleanup==null)return;
             Point position=cleanup.Position;
             cleanup=null;cleanupMenuOpenedAt=-1;
-            if(cleanupHitFrame!=null){cleanupHitFrame.Dispose();cleanupHitFrame=null;}
             if(cleanupBackBuffer!=null){cleanupBackBuffer.Dispose();cleanupBackBuffer=null;}
             UpdateCleanupInput();
-            // Restore logical pet bounds before another interaction reads them.
-            Bounds=new Rectangle(position,Renderer.WindowSize(prefs.Size));
+            // Change model coordinates now; publish native bounds and replacement
+            // pixels together in Render. A failed upload retains the old scene
+            // and its matching hit mask until that same transition can retry.
+            PetLocation=position;
             row=frame=0;actionStart=Now;actionUntil=0;ScheduleCleanup();Schedule();PauseAutomaticActivities();edgeWatch.Reset(Now);
             if(!closing && !resourcesDisposed)Render(); // Settings can pause ticks immediately after cancellation.
         }
@@ -353,7 +354,7 @@ namespace MochiDesktop {
             if(now-cleanupLastTick>2){CancelCleanup();Render();return true;}
             cleanupLastTick=now;
             bool active=cleanup.Advance(now);
-            if(!IsHandleCreated)Location=cleanup.Position;Face(cleanup.Right);
+            PetLocation=cleanup.Position;Face(cleanup.Right);
             if(!active){CancelCleanup();Save();Render(now);}
             else PresentCleanup(now);
             return true;
@@ -372,7 +373,7 @@ namespace MochiDesktop {
             // Layered WS_EX_TRANSPARENT also lets the actual desktop/other apps
             // receive input. Re-evaluate at the timer's normal 15ms cadence so
             // hovering Mochi restores his ordinary interactive window promptly.
-            try{Native.SetClickThrough(Handle,cleanup!=null && !down && !menu.Visible && !CleanupHit(Cursor.Position));nextCleanupInputAttempt=0;}
+            try{Native.SetClickThrough(Handle,cleanupHitFrame!=null && !down && !menu.Visible && !CleanupHit(Cursor.Position));nextCleanupInputAttempt=0;}
             catch(System.ComponentModel.Win32Exception){nextCleanupInputAttempt=Now+NativeRetryDelay;}
         }
     }

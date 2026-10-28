@@ -149,7 +149,7 @@ namespace MochiDesktop {
             if(!click.HasValue){Act(0,"No rush.\nI'll wait right here.",2.5);return;}
             Point point=click.Value;Rectangle destinationArea=Screen.FromPoint(point).WorkingArea;
             Point target=Destination.Place(point,prefs.Size,destinationArea);
-            Rectangle routeArea=Rectangle.Union(Screen.FromRectangle(Bounds).WorkingArea,destinationArea);
+            Rectangle routeArea=Rectangle.Union(Screen.FromRectangle(PetBounds).WorkingArea,destinationArea);
             BeginDestinationSwim(target,routeArea);
         }
         void BeginDestinationSwim(Point target,Rectangle routeArea){
@@ -157,13 +157,13 @@ namespace MochiDesktop {
             CancelPlayful();CancelCleanup();
             CancelRegularAnimation();
             StopPicking();startupHintAt=-1;gaze.Reset();feeding=null;reaction=null;down=false;dragging=false;
-            SwimPath path=new SwimPath(Location,Size,routeArea,random,false,target);
+            SwimPath path=new SwimPath(PetLocation,PetSize,routeArea,random,false,target);
             if(path.Length<.5){Act(0,"I'm already here!",2.5);return;}
             StartSwimPath(path,routeArea,true);
         }
         void StartSwimPath(SwimPath path,Rectangle bounds,bool guided){
             swimPath=path;swimBounds=bounds;guidedSwim=guided;
-            swimFrom=Location;swimTo=path.End;travelStart=Now;
+            swimFrom=PetLocation;swimTo=path.End;travelStart=lastSwimFrame=Now;
             travelDuration=guided?Math.Max(.8,Math.Min(12,path.Length/130+1)):path.Duration;swimFraction=PointF.Empty;
             FaceTravel(swimTo.X-swimFrom.X);swimGaze.Reset();PointF heading=path.Heading(0);swimGaze.Update(heading.X,heading.Y,Now);
             row=faceRight?1:2;actionStart=Now;actionUntil=0;swimming=true;bubble=guided?PickLine(SwimOverLines,ref lastSwimOverLine):"";bubbleUntil=Now+3;
@@ -173,7 +173,7 @@ namespace MochiDesktop {
             Point away=new Point(-10000,-10000);
             using(Companion pet=new Companion(true)){
                 pet.prefs.Roam=false;Rectangle area=Screen.PrimaryScreen.WorkingArea;
-                Point start=new Point(area.Left+(area.Width-pet.Width)/2,area.Top+(area.Height-pet.Height)/2);pet.Location=start;
+                Point start=new Point(area.Left+(area.Width-pet.Width)/2,area.Top+(area.Height-pet.Height)/2);pet.PetLocation=start;
                 int menuCount=0;foreach(ToolStripItem item in pet.menu.Items)if(item.Text=="Come here")menuCount++;
                 if(menuCount!=1)throw new Exception("Come here menu action missing or duplicated");
                 pet.Pet();pet.ChooseDestination();
@@ -183,7 +183,7 @@ namespace MochiDesktop {
                 pet.CompleteDestination(null);
                 if(pet.choosingDestination || pet.swimming || pet.Location!=start || pet.nextIdleActivity!=pending || pet.automaticReadyAt<pet.Now+3)throw new Exception("Destination cancellation changed position, erased a pending turn, or skipped the handoff pause");
                 foreach(Point click in new[]{new Point(area.Left+1,area.Top+1),new Point(area.Right-1,area.Bottom-1),new Point(area.Left+area.Width/2,area.Top+area.Height/2)}){
-                    pet.Location=start;pet.ChooseDestination();int last=pet.lastSurprise;pet.CompleteDestination(click);
+                    pet.PetLocation=start;pet.ChooseDestination();int last=pet.lastSurprise;pet.CompleteDestination(click);
                     Point target=Destination.Place(click,pet.prefs.Size,area);
                     if(!pet.swimming || !pet.guidedSwim || pet.Location!=start || pet.swimTo!=target || pet.prefs.Roam)throw new Exception("Requested swim teleported, ignored target, or changed roaming preference");
                     double end=pet.travelStart+pet.travelDuration;pet.Advance(pet.travelStart+pet.travelDuration*.5,click);
@@ -196,7 +196,7 @@ namespace MochiDesktop {
                 if(pet.choosingDestination || pet.feeding==null)throw new Exception("Manual reaction failed to cancel picker");
                 pet.ChooseDestination();pet.CancelInteraction();if(pet.choosingDestination)throw new Exception("Controls failed to cancel picker");
                 Point crossStart=new Point(-1300,200),crossEnd=new Point(900,500);Rectangle crossArea=new Rectangle(-1920,-200,3840,1400);
-                pet.Location=crossStart;pet.BeginDestinationSwim(crossEnd,crossArea);
+                pet.PetLocation=crossStart;pet.BeginDestinationSwim(crossEnd,crossArea);
                 pet.Advance(pet.travelStart+pet.travelDuration*.25,away);
                 if(pet.Left>=0)throw new Exception("Cross-monitor swim jumped to the current monitor");
                 pet.Advance(pet.travelStart+pet.travelDuration,away);

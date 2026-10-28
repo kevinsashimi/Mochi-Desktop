@@ -2,6 +2,13 @@
 
 Small updates for your little ocean. These notes are also available offline in Settings → What's New.
 
+## 1.2.16 - Staying on course
+
+- Mochi keeps his own position and body size separate from the Windows drawing surface. Unexpected window moves or resizes can no longer send him to the top-left corner.
+- Ocean Cleanup returns to normal swimming in one frame; temporary drawing failures retain the previous scene until the transition succeeds.
+- Normal swimming no longer skips ahead when a busy desktop or a pause delays animation frames. Mochi continues along the same route from his last position.
+- Normal swimming speed, gentle acceleration and deceleration stay the same. The same recovery also applies to Come here journeys.
+
 ## 1.2.15 - A little heads-up for new updates
 
 - Mochi checks for new public releases when he starts, and whenever you choose Check for updates. He lets you know when a newer version is ready.

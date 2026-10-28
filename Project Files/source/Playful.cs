@@ -255,7 +255,7 @@ namespace MochiDesktop {
             string current;
             using (IDesktopIcons desktop = desktopFactory()) {
                 DesktopLayout layout = desktop.Read();
-                Rectangle area = Screen.FromRectangle(Bounds).WorkingArea;
+                Rectangle area = Screen.FromRectangle(PetBounds).WorkingArea;
                 int local = layout.Items.FindAll(delegate(DesktopItem item) { return area.Contains(new Rectangle(item.Position, item.Cell)); }).Count;
                 current = layout.Status != DesktopIconStatus.Available ? PlayfulTrip.DesktopDescription(layout) :
                     layout.Items.Count == 0 ? "No readable desktop icons were found." :
@@ -294,7 +294,7 @@ namespace MochiDesktop {
             try {
                 DesktopLayout layout = desktop.Read();
                 if (layout.Status != DesktopIconStatus.Available) return CannotStartPlayful(PlayfulTrip.DesktopDescription(layout), requested);
-                Rectangle area = Screen.FromRectangle(Bounds).WorkingArea;
+                Rectangle area = Screen.FromRectangle(PetBounds).WorkingArea;
                 List<DesktopItem> choices = layout.Items.FindAll(delegate(DesktopItem item) { return area.Contains(new Rectangle(item.Position, item.Cell)); });
                 if (choices.Count == 0) return CannotStartPlayful(layout.Items.Count == 0 ? "No readable desktop icons were found." :
                     "There are no fully visible icons on Mochi's monitor. Move Mochi to a monitor with desktop icons.", requested);
@@ -311,7 +311,7 @@ namespace MochiDesktop {
                     // the only item with a usable route or picture.
                     if (!retryLast && choices.Count > 1 && item.Id == lastPlayfulItem) continue;
                     MischiefKind kind = (MischiefKind)random.Next(2);
-                    PlayfulPlan plan = PlayfulPlan.Create(layout, item, Location, prefs.Size, area, random, kind);
+                    PlayfulPlan plan = PlayfulPlan.Create(layout, item, PetLocation, prefs.Size, area, random, kind);
                     if (plan == null) continue;
                     Bitmap picture = desktop.Picture(item.Id);
                     if (picture == null) { pictureFailed = true; pictureProblem = desktop.Problem; continue; }
@@ -332,12 +332,12 @@ namespace MochiDesktop {
             if (!simulation && MouseInterruptsPlayful(Cursor.Position, Control.MouseButtons)) { CancelPlayful("Mochi or the selected icon was clicked during the trip."); return true; }
             playfulLastTick = now;
             bool active = playful.Advance(now);
-            Location = playful.Position; Face(playful.Plan.FaceRight);
+            PetLocation = playful.Position; Face(playful.Plan.FaceRight);
             if (!active) { CancelPlayful(playful.StopReason); Save(); }
             Render(); return true;
         }
         bool MouseInterruptsPlayful(Point cursor, MouseButtons buttons) {
-            return playful != null && buttons != MouseButtons.None && (Bounds.Contains(cursor) || playful.ActualIconBounds.Contains(cursor));
+            return playful != null && buttons != MouseButtons.None && (PetBounds.Contains(cursor) || playful.ActualIconBounds.Contains(cursor));
         }
     }
 }

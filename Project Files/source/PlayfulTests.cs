@@ -360,7 +360,7 @@ namespace MochiDesktop {
             for(int order=0;order<2;order++)using(Companion pet=new Companion(true)) {
                 PlayfulDesktopFixture desktop=new PlayfulDesktopFixture(new Point(area.Left+650,area.Top+450));
                 pet.desktopFactory=desktop.Open;pet.prefs.PlayfulMode=true;pet.prefs.Roam=false;
-                pet.Location=new Point(area.Left+300,area.Top+100);
+                pet.PetLocation=new Point(area.Left+300,area.Top+100);
                 pet.nextPlayful=order==0?0:1;pet.nextIdleActivity=order==0?1:0;
                 pet.Advance(0,away);
                 int first=order==0?4:1,second=order==0?1:4;
@@ -386,7 +386,7 @@ namespace MochiDesktop {
             using(Companion pet=new Companion(true)) {
                 PlayfulDesktopFixture desktop=new PlayfulDesktopFixture(new Point(area.Left+650,area.Top+450));
                 pet.desktopFactory=desktop.Open;pet.prefs.PlayfulMode=true;pet.prefs.Roam=false;
-                pet.Location=new Point(area.Left+300,area.Top+100);
+                pet.PetLocation=new Point(area.Left+300,area.Top+100);
                 pet.prefs.NextFeed=3;pet.prefs.NextPet=4;pet.prefs.NextPlay=2;pet.SchedulePlayful();
                 int[] counts=new int[5];int previous=0;double lastEnd=Double.NegativeInfinity;
                 // Run the 1-3 minute idle and 3-5 minute prank clocks for two simulated hours.
@@ -411,7 +411,7 @@ namespace MochiDesktop {
             using(Companion pet=new Companion(true)) {
                 PlayfulDesktopFixture desktop=new PlayfulDesktopFixture(new Point(area.Left+650,area.Top+450));
                 pet.desktopFactory=desktop.Open;pet.prefs.PlayfulMode=true;pet.prefs.Roam=false;
-                pet.Location=new Point(area.Left+300,area.Top+100);
+                pet.PetLocation=new Point(area.Left+300,area.Top+100);
                 // A blocked prank must not prevent an equally due regular turn.
                 desktop.Layout.Status=DesktopIconStatus.AutoArrange;pet.nextPlayful=pet.nextIdleActivity=0;
                 pet.Advance(0,away);
@@ -448,7 +448,7 @@ namespace MochiDesktop {
                 Rectangle area = Screen.PrimaryScreen.WorkingArea;
                 PlayfulDesktopFixture desktop = new PlayfulDesktopFixture(new Point(area.Left + area.Width / 2, area.Top + area.Height / 2));
                 pet.desktopFactory = desktop.Open; pet.prefs.Roam = false; pet.nextIdleActivity = Double.PositiveInfinity;
-                pet.Location = new Point(area.Left + 300, area.Top + 100);
+                pet.PetLocation= new Point(area.Left + 300, area.Top + 100);
                 foreach (ToolStripItem item in pet.menu.Items) PlayfulTests.Check(item.Text.IndexOf("Playful Mode", StringComparison.OrdinalIgnoreCase) < 0, "mode leaked into context/tray menu");
                 pet.Advance(400, away); PlayfulTests.Check(pet.playful == null && desktop.Reads == 0, "disabled mode accessed desktop");
                 pet.prefs.PlayfulMode = true; HashSet<int> waits = new HashSet<int>();
@@ -503,7 +503,7 @@ namespace MochiDesktop {
             for (int category = 0; category < 4; category++) using (Companion pet = new Companion(true)) {
                 PlayfulDesktopFixture desktop = new PlayfulDesktopFixture(new Point(area.Left + 650, area.Top + 450));
                 pet.desktopFactory = desktop.Open; pet.prefs.PlayfulMode = true; pet.prefs.Roam = category == 3;
-                pet.Location = new Point(area.Left + 300, area.Top + 100); pet.nextIdleActivity = Double.PositiveInfinity;
+                pet.PetLocation= new Point(area.Left + 300, area.Top + 100); pet.nextIdleActivity = Double.PositiveInfinity;
                 pet.nextPlayful = 1;
                 if (category == 0) pet.Feed();
                 else if (category == 1) pet.Pet();
@@ -523,7 +523,7 @@ namespace MochiDesktop {
             using (Companion pet = new Companion(true)) {
                 PlayfulDesktopFixture desktop = new PlayfulDesktopFixture(new Point(area.Left + 650, area.Top + 450));
                 pet.desktopFactory = desktop.Open; pet.prefs.PlayfulMode = true; pet.prefs.Roam = false;
-                pet.Location = new Point(area.Left + 300, area.Top + 100); pet.nextIdleActivity = Double.PositiveInfinity;
+                pet.PetLocation= new Point(area.Left + 300, area.Top + 100); pet.nextIdleActivity = Double.PositiveInfinity;
                 pet.nextPlayful = 240;
                 for (int i = 0; i < 10; i++) { pet.simulatedTime += 10; pet.CancelInteraction(); pet.ApplyPlayfulSettings(true, false); }
                 PlayfulTests.Check(pet.nextPlayful == 240, "opening controls or saving unchanged settings reset the countdown");
@@ -561,7 +561,7 @@ namespace MochiDesktop {
             using (Companion pet = new Companion(true)) {
                 PlayfulDesktopFixture desktop = new PlayfulDesktopFixture(new Point(area.Left + 20, area.Top + 20));
                 pet.desktopFactory = desktop.Open; pet.prefs.PlayfulMode = true; pet.prefs.Roam = false;
-                pet.Location = Motion.Clamp(new Point(area.Right - pet.Width - 20, area.Bottom - pet.Height - 20), pet.Size, area);
+                pet.PetLocation= Motion.Clamp(new Point(area.Right - pet.Width - 20, area.Bottom - pet.Height - 20), pet.Size, area);
                 Point start = pet.Location;
                 pet.nextIdleActivity = Double.PositiveInfinity; pet.nextPlayful = 0;
                 pet.Advance(0, away);

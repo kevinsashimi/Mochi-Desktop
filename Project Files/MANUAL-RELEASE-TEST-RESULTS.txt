@@ -1,9 +1,22 @@
-Mochi Desktop 1.2.15 - unsigned manual-download release with update checks
+Mochi Desktop 1.2.16 - unsigned manual-download build with swimming continuity fixes
 
-65 regression groups passed under Wine/Xvfb, including 9 updater groups.
-Final production EXE: no-release/current/newer dialogs and Info opened and dismissed; startup notification rules verified through the production code.
-Live production network check: GitHub HTTP 404 correctly reported no public release before publication.
+The repository executable is byte-for-byte identical to the tested preview v2.
+69 regression groups and 7 live UI checks passed under Wine/Xvfb.
+Production EXEs compared using native move/resize requests during normal swimming.
+This reproduces a geometry failure; the Windows event on the user's PC that originally caused the native change has not been identified.
 Native Windows 11 testing is not claimed.
+
+Preview v1 reproduction
+Native move to screen origin: before={X=648,Y=298} {Width=250, Height=280} immediate={X=0,Y=0} {Width=250, Height=280}
+After normal-swim tick: {X=647,Y=298} {Width=250, Height=280}
+Oversized native window: before={X=648,Y=298} {Width=250, Height=280} immediate={X=648,Y=298} {Width=1280, Height=1024}
+After normal-swim tick: {X=0,Y=0} {Width=1280, Height=1024}
+
+Corrected production preview
+Native move to screen origin: before={X=648,Y=298} {Width=250, Height=280} immediate={X=648,Y=298} {Width=250, Height=280}
+After normal-swim tick: {X=647,Y=298} {Width=250, Height=280}
+Oversized native window: before={X=648,Y=298} {Width=250, Height=280} immediate={X=648,Y=298} {Width=250, Height=280}
+After normal-swim tick: {X=647,Y=298} {Width=250, Height=280}
 
 TEST-RESULTS.txt
 PASS: all 16 direction mappings; 1000 offscreen clamps including negative-coordinate monitor; travel endpoints; all animation frame bounds; 73 original + 24 feeding + 32 illustrated interaction cells; alpha-transparent window; render geometry.
@@ -70,6 +83,12 @@ PASS: settings XML has explicit size, DTD and root guards; malformed input retai
 PASS: settings save uses collision-resistant temporary names, cleans failures, preserves existing fixed-name files, and round-trips atomically.
 PASS: named-object scopes are deterministic, opaque, case-stable, and separated by user and installation path.
 
+swim-continuity-test-results.txt
+PASS: normal/guided swims across all sizes and landscape/portrait/negative-coordinate screens survive 120ms to one-hour frame gaps with bounded movement, no catch-up, unchanged routes, exact arrivals, modal pauses and fresh clocks on subsequent swims.
+PASS: 20/30/60/120 fps retain the original time-based speed, acceleration, deceleration and arrival time.
+PASS: native moves to (0,0), oversized native bounds and combined move/resize requests cannot relocate or resize a visible idle/swimming pet; normal frame presentation, dragging, size changes and Manual mode still work at every pet size.
+PASS: cleanup starts at the character's existing position, and a failed cleanup-to-swimming frame retains the old scene/hit mask while logical position and footprint remain independent; retry restores the pet-sized window on zero/negative-coordinate screens.
+
 update-test-results.txt
 PASS: pinned publisher signatures; tampered, missing and malformed signatures rejected; newer/same/older versions; numeric ordering; malformed/oversize metadata; offline and cancellation; no executable download during checks.
 PASS: only Mochi.exe downloaded; SHA-256, length, and embedded version validation; bad downloads rejected.
@@ -88,13 +107,13 @@ PASS: disabled wallpaper loads no artwork; turning off cancels startup and relea
 PASS: controlled native fixtures select classic and raised desktop hosts, reject unsafe hosts, and detect host changes/destruction.
 PASS: native Windows compatibility manifest and actionable Win32 diagnostic errors.
 
-Production executable checks
-PASS: final production executable queues none release result and its dialog dismisses normally.
-PASS: final production executable queues v1.2.15 release result and its dialog dismisses normally.
-PASS: final production executable queues v1.2.16 release result and its dialog dismisses normally.
-PASS: final release identity 1.2.15.0; only a newer release prompts at startup; manual downloads enabled.
-X connection to :99 broken (explicit kill or server shutdown).
+Live UI
+PASS: Settings opens and saves the new default cleanup preference
+PASS: update result opens from the menu and dismisses without an updater error or restart
+PASS: release Info dialog opens and dismisses normally for manual-edition version review
+PASS: clicking Mochi in the expanded scene opens his menu; a five-second pause and outside click resume the same cleanup
+PASS: release cleanup finishes pickup, carry and disposal on one window and restores normal pet bounds
+PASS: automatic cleanup can be disabled and saved through Settings
+PASS: Settings IPC cancels a fresh encounter and restores the ordinary window without leftover prop windows
 
-PASS: production network check handles GitHub HTTP 404 as no published release.
-
-EXE SHA256: 82bf5fb2fad3c9dc8ec610776f40781d6a5e61c1e66bec8e19a67ea365f20a5f
+EXE SHA256: 312232d45111e2738dc46b1809b45c508ea5f3032257b8049d350d6537d31415

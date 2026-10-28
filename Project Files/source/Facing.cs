@@ -49,7 +49,7 @@ namespace MochiDesktop {
             using(Companion pet=new Companion(true)){
                 pet.prefs.Roam=false;Rectangle area=Screen.PrimaryScreen.WorkingArea;
                 Point middle=new Point(area.Left+(area.Width-pet.Width)/2,area.Top+(area.Height-pet.Height)/2);
-                pet.Location=middle;
+                pet.PetLocation=middle;
                 foreach(bool right in new[]{false,true}){
                     pet.Face(right);pet.StartWelcome();double start=pet.Now;
                     Rectangle sprite=Renderer.SpriteRect(pet.prefs.Size);
@@ -64,7 +64,7 @@ namespace MochiDesktop {
                 }
                 if(SurpriseVariants.Length!=2*(SurpriseFeeds.Length+SurpriseReactions.Length))throw new Exception("Every animation must have both facing variants");
                 foreach(InteractionVariant variant in SurpriseVariants){
-                    pet.Location=middle;
+                    pet.PetLocation=middle;
                     if(variant.Feed.HasValue)pet.StartFeeding(variant.Feed.Value,variant.Right);else pet.StartReaction(variant.Reaction.Value,variant.Right);
                     double end=pet.feeding!=null?pet.feeding.Started+pet.feeding.Duration:pet.reaction.Started+pet.reaction.Duration;
                     if(pet.faceRight!=variant.Right)throw new Exception("Reaction did not set facing: "+variant.Key);
@@ -73,7 +73,7 @@ namespace MochiDesktop {
                     using(Bitmap actual=pet.RenderFrame())using(Bitmap expected=Renderer.DrawAnimated(pet.atlas,0,pet.Now-pet.actionStart,pet.prefs.Size,pet.bubble,variant.Right))FacingTests.Same(actual,expected,"idle facing");
                 }
                 foreach(bool right in new[]{false,true}){
-                    pet.Face(right);pet.Location=middle;pet.MoveDragged(new Point(middle.X+(right?-20:20),middle.Y));
+                    pet.Face(right);pet.PetLocation=middle;pet.MoveDragged(new Point(middle.X+(right?-20:20),middle.Y));
                     if(pet.faceRight==right || pet.row!=(right?2:1))throw new Exception("Drag direction not applied");
                     pet.MoveDragged(middle); // Reverse while still on the same side of the original pointer position.
                     if(pet.faceRight!=right)throw new Exception("Drag reversal not applied");
@@ -82,7 +82,7 @@ namespace MochiDesktop {
                     pet.down=true;pet.dragging=true;pet.OnUp(pet,new MouseEventArgs(MouseButtons.Left,1,0,0,0));
                     pet.Advance(pet.Now+2,away);
                     if(pet.faceRight!=right)throw new Exception("Drag release reset facing");
-                    pet.Location=middle;Rectangle body=Renderer.SpriteRect(pet.prefs.Size);
+                    pet.PetLocation=middle;Rectangle body=Renderer.SpriteRect(pet.prefs.Size);
                     Point center=new Point(pet.Left+body.Left+body.Width/2,pet.Top+body.Top+body.Height/2);
                     pet.Advance(pet.Now+1,new Point(center.X+(right?-130:130),center.Y));
                     if(!pet.gaze.Active)throw new Exception("Directional idle disabled cursor gaze");
@@ -91,7 +91,7 @@ namespace MochiDesktop {
                 }
                 HashSet<bool> swims=new HashSet<bool>();
                 for(int i=0;i<100;i++){
-                    pet.Location=middle;pet.BeginSwim(true);
+                    pet.PetLocation=middle;pet.BeginSwim(true);
                     if(!pet.swimming)throw new Exception("Facing test swim failed to start");
                     Point destination=pet.swimTo,origin=pet.swimFrom;
                     bool expected=destination.X==origin.X?pet.faceRight:destination.X>origin.X;swims.Add(expected);
@@ -111,7 +111,7 @@ namespace MochiDesktop {
                 double idleDue=pet.nextIdleActivity=pet.Now+10000,swimDue=pet.nextSwim=pet.Now+10001;
                 double playfulDue=pet.nextPlayful=playfulEnabled?pet.Now+10002:Double.PositiveInfinity;
                 Rectangle area=Screen.PrimaryScreen.WorkingArea,body=Renderer.SpriteRect(size);
-                pet.Location=new Point(area.Left+(area.Width-pet.Width)/2,area.Top+(area.Height-pet.Height)/2);
+                pet.PetLocation=new Point(area.Left+(area.Width-pet.Width)/2,area.Top+(area.Height-pet.Height)/2);
                 Point center=new Point(pet.Left+body.Left+body.Width/2,pet.Top+body.Top+body.Height/2);
                 foreach(bool initiallyRight in new[]{false,true})for(int direction=0;direction<16;direction++){
                     pet.gaze.Reset();pet.Face(initiallyRight);

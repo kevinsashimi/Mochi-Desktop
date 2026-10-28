@@ -225,7 +225,7 @@ namespace MochiDesktop {
                 pet.prefs.Size=size;pet.Size=Renderer.WindowSize(size);
                 bool left=direction==0 || direction==4 || direction==6,right=direction==1 || direction==5 || direction==7;
                 bool up=direction==2 || direction==4 || direction==5,down=direction==3 || direction==6 || direction==7;
-                pet.Location=new Point(right?screen.Right-pet.Width-50:screen.Left+50,down?screen.Bottom-pet.Height-50:screen.Top+50);
+                pet.PetLocation=new Point(right?screen.Right-pet.Width-50:screen.Left+50,down?screen.Bottom-pet.Height-50:screen.Top+50);
                 pet.StartManualSwimming();CheckManualEdge(pet.manualSwim.Area==screen,"manual swim still excludes the taskbar strip");
                 if(left)pet.manualSwim.Input.Set(Keys.A,true);if(right)pet.manualSwim.Input.Set(Keys.D,true);
                 if(up)pet.manualSwim.Input.Set(Keys.W,true);if(down)pet.manualSwim.Input.Set(Keys.S,true);
@@ -245,7 +245,7 @@ namespace MochiDesktop {
         public static void VerifyManualBoost(){
             Point away=new Point(-10000,-10000);Rectangle area=Screen.PrimaryScreen.WorkingArea;Point start=new Point(area.Left+300,area.Top+200);
             using(Companion pet=new Companion(true)){
-                pet.Location=start;pet.prefs.Roam=false;pet.prefs.PlayfulMode=true;pet.StartManualSwimming();pet.nextIdleActivity=pet.nextPlayful=1;
+                pet.PetLocation=start;pet.prefs.Roam=false;pet.prefs.PlayfulMode=true;pet.StartManualSwimming();pet.nextIdleActivity=pet.nextPlayful=1;
                 pet.manualSwim.Input.Set(Keys.D,true);pet.manualSwim.Input.Set(Keys.Space,true);pet.Advance(.01,away);
                 ManualSwimTests.Check(pet.manualSwim.BoostReadyAt==5.01 && pet.nextManualBoostAt==5.01,"Space did not start boost");
                 ManualSwimTests.Check(pet.manualBoostAnimation!=null && pet.manualBoostAnimation.Started==.01,"accepted Space did not start new illustrated animation");
@@ -266,11 +266,11 @@ namespace MochiDesktop {
                 ManualSwimTests.Check(pet.manualBoostAnimation==null,"boost illustration never settled to regular swimming");
                 pet.manualSwim.Input.Set(Keys.Space,false);pet.manualSwim.Input.Set(Keys.Space,true);pet.Advance(pet.Now+.01,away);
                 double ready=pet.nextManualBoostAt;ManualSwimTests.Check(ready>10 && pet.nextIdleActivity==1 && pet.nextPlayful==1,"fresh boost altered pending timers");
-                pet.StopManualSwimming();pet.Location=start;pet.StartManualSwimming();pet.manualSwim.Input.Set(Keys.Space,true);pet.Advance(pet.Now+.01,away);
+                pet.StopManualSwimming();pet.PetLocation=start;pet.StartManualSwimming();pet.manualSwim.Input.Set(Keys.Space,true);pet.Advance(pet.Now+.01,away);
                 ManualSwimTests.Check(pet.nextManualBoostAt==ready && pet.manualSwim.BoostUntil<pet.Now,"mode re-entry bypassed cooldown");
                 int spoken=0,silent=0,last=-1,lastStyle=pet.lastBoostStyle;HashSet<int> seenStyles=new HashSet<int>();
                 for(int i=0;i<60;i++){
-                    pet.StopManualSwimming();pet.Location=start;pet.StartManualSwimming();pet.manualSwim.Input.Set(Keys.Space,true);pet.Advance(Math.Max(pet.Now+.01,pet.nextManualBoostAt),away);
+                    pet.StopManualSwimming();pet.PetLocation=start;pet.StartManualSwimming();pet.manualSwim.Input.Set(Keys.Space,true);pet.Advance(Math.Max(pet.Now+.01,pet.nextManualBoostAt),away);
                     ManualSwimTests.Check(pet.manualBoostAnimation!=null && pet.lastBoostStyle!=lastStyle,"actual boost expression immediately repeated");
                     lastStyle=pet.lastBoostStyle;seenStyles.Add(lastStyle);
                     if(pet.bubble.Length>0){spoken++;ManualSwimTests.Check(pet.lastBoostLine!=last,"spoken boost lines repeated consecutively");last=pet.lastBoostLine;}else silent++;
@@ -283,7 +283,7 @@ namespace MochiDesktop {
         public static void VerifyManualSwimming(){
             Point away=new Point(-10000,-10000);Rectangle area=Screen.PrimaryScreen.WorkingArea;
             foreach(bool playfulMode in new[]{false,true})foreach(bool roam in new[]{false,true})using(Companion pet=new Companion(true)){
-                pet.Location=new Point(area.Left+300,area.Top+200);pet.prefs.Roam=roam;pet.prefs.PlayfulMode=playfulMode;
+                pet.PetLocation=new Point(area.Left+300,area.Top+200);pet.prefs.Roam=roam;pet.prefs.PlayfulMode=playfulMode;
                 PlayfulDesktopFixture desktop=new PlayfulDesktopFixture(new Point(area.Left+650,area.Top+450));pet.desktopFactory=desktop.Open;
                 int count=0;foreach(ToolStripItem item in pet.menu.Items)if(item.Text=="Manual mode")count++;
                 ManualSwimTests.Check(count==1,"menu action missing or duplicated");

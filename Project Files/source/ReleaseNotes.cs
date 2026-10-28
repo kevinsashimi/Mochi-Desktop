@@ -152,7 +152,7 @@ namespace MochiDesktop {
             ReleaseWelcome card=new ReleaseWelcome(ReleaseCatalog.Current,atlas.Frames[0,0],ShowReleaseNotes);
             releaseWelcome=card;
             card.FormClosed+=delegate{if(releaseWelcome==card)releaseWelcome=null;};
-            Rectangle area=Screen.FromRectangle(Bounds).WorkingArea;
+            Rectangle area=Screen.FromRectangle(PetBounds).WorkingArea;
             card.Shown+=delegate{ReleaseStyle.Center(card,area);};
             card.Show();releaseWelcomePending=false;RememberReleaseNotes();
         }
