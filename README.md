@@ -10,9 +10,9 @@ Meet Mochi, a tiny animated companion for Windows who swims around your desktop,
 
 Mochi stays **behind your app windows**, so he can keep you company while you work. He runs locally, with no account or API key needed. Playing with Mochi works offline; update checks and opening the download page use the internet.
 
-**[Download Mochi.exe 1.2.15](https://github.com/kevinsashimi/Mochi-Desktop/releases/latest/download/Mochi.exe)** · [Get started](#1-bring-mochi-home) · [Learn the controls](#2-say-hello) · [What's New](CHANGELOG.md)
+**[Download Mochi.exe 1.2.16](https://github.com/kevinsashimi/Mochi-Desktop/releases/latest/download/Mochi.exe)** · [Get started](#1-bring-mochi-home) · [Learn the controls](#2-say-hello) · [What's New](CHANGELOG.md)
 
-The repository's [Mochi.exe](Mochi.exe) is **1.2.16**, including the tested fix for jumps to the top-left corner and skipped swimming frames. The latest published release is **1.2.15**; the release download above will change when a new release is published.
+**Latest stable release: [1.2.16](https://github.com/kevinsashimi/Mochi-Desktop/releases/tag/v1.2.16).** This version fixes jumps to the top-left corner and skipped swimming frames. You can also [download the ZIP](https://github.com/kevinsashimi/Mochi-Desktop/releases/download/v1.2.16/Mochi-Desktop-1.2.16.zip), which contains an enclosing folder with Mochi, instructions and test results.
 
 ## A few of Mochi's moves
 
@@ -36,7 +36,7 @@ You need a **Windows PC with .NET Framework**. Modern Windows PCs, including Win
 
 You don’t need to install or compile anything—Mochi is ready to swim right out of the box! 🌊
 
-1. **[Download Mochi.exe 1.2.15](https://github.com/kevinsashimi/Mochi-Desktop/releases/latest/download/Mochi.exe).** This single file includes Mochi and his artwork.
+1. **[Download Mochi.exe 1.2.16](https://github.com/kevinsashimi/Mochi-Desktop/releases/latest/download/Mochi.exe).** This single file includes Mochi and his artwork.
 2. **Give him a home.** Save the file in a folder you can write to and plan to keep, such as `Documents\Mochi`. This lets the app save your preferences.
 3. **Double-click `Mochi.exe`.** Mochi will appear at a random safe spot on one of your monitors and say hello.
 4. **Show your desktop and find him.** Minimize any windows covering him, then give him a click!
@@ -196,7 +196,7 @@ To publish a manual-download release:
 1. Update the assembly, file and informational versions in `Project Files/source/AssemblyInfo.cs` and the top entry in `CHANGELOG.md`. The first two bullets become the post-update welcome highlights.
 2. Run the companion and updater regression checks in the isolated test build, then verify the final executable's version, native resources and absence of test hooks:
    `python3 'Project Files/build-tools/verify-package.py' Mochi.exe 'Project Files/source/app.manifest'`.
-3. Commit the tested root `Mochi.exe`, source, documentation and SHA-256 checksum. Publish those exact bytes as GitHub Release assets, with a ZIP containing an enclosing folder and manual installation instructions. Clearly label the release as unsigned. Use a stable version tag such as `v1.2.15`, publish it as the latest release (not a draft or prerelease), and verify the downloads. Startup/menu update checks read GitHub’s latest published release. Do not include `update.xml`.
+3. Commit the tested root `Mochi.exe`, source, documentation and SHA-256 checksum. Publish those exact bytes as GitHub Release assets, with a ZIP containing an enclosing folder and manual installation instructions. Clearly label the release as unsigned. Use a stable version tag such as `v1.2.16`, publish it as the latest release (not a draft or prerelease), and verify the downloads. Startup/menu update checks read GitHub’s latest published release. Do not include `update.xml`.
 4. Pushing the stable version tag runs **Prepare manual release downloads** in GitHub Actions. It checks the committed executable/version/checksum/test report, packages those exact bytes, and uploads them to a draft. It can also be run manually for an existing tag. It does not rebuild or publish automatically. Update `Project Files/MANUAL-RELEASE-NOTES.md` before tagging.
 5. Verify the downloaded assets match the tested executable, then publish the draft as latest. Do not replace a published version's assets or reuse its version number for different executable bytes.
 
