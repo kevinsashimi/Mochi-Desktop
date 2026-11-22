@@ -32,12 +32,20 @@ movement, optional Ocean Cleanup, and reliable manual-download updates.
 
 - Repository: https://github.com/kevinsashimi/Mochi-Desktop (public).
 - Default branch: `main`.
-- Active branch: `main`. The documentation from `docs/workspace-instructions`
-  has been merged with Kevin's approval; no pull request was needed.
-- Current task completed: adopt Kevin's uploaded workspace organization instructions.
+- Active handoff branch: `docs/sync-status`, based on synchronized `main`.
+  The workspace instructions were previously merged into `main` with Kevin's
+  approval; no pull request was needed.
+- Current task: synchronize with GitHub's `main`, preserve local changes, and
+  record the outcome. Cloud verification is complete; Windows synchronization
+  remains blocked by unavailable local filesystem access.
   This continues the existing Mochi Desktop cloud conversation; no shareable
-  cloud-task URL is available. This document on `main` is the portable handoff.
+  cloud-task URL is available. This document is the portable handoff.
 - Current cloud checkout: `/workspace/Mochi-Desktop`.
+- Synchronization check: fetched `origin/main` and ran a fast-forward-only merge.
+  The cloud checkout was already current at
+  `bd33b99dddc1ceca358a08f976d44d72221c1e93`, with zero commits ahead or behind
+  and no uncommitted changes before this status update. No reset, stash, or
+  replacement of files was needed.
 - Windows project path: unavailable and not verified in this session. The
   designated local workspace is ChatGPT Workspace; no local mirror was created
   or modified. Local synchronization is pending until access is available.
@@ -62,6 +70,9 @@ movement, optional Ocean Cleanup, and reliable manual-download updates.
 
 ## Outstanding tasks
 
+- Complete the Windows synchronization from a session that can access the
+  existing Windows project. Sending the synchronization request in this cloud
+  conversation does not grant access to the PC or its folders.
 - When Windows access is available, verify the existing project location and
   inspect uncommitted work before synchronizing the accepted cloud changes.
 - No application feature or bug-fix request is currently pending.
