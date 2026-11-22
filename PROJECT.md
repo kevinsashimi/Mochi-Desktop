@@ -32,10 +32,11 @@ movement, optional Ocean Cleanup, and reliable manual-download updates.
 
 - Repository: https://github.com/kevinsashimi/Mochi-Desktop (public).
 - Default branch: `main`.
-- Active handoff branch: `docs/workspace-instructions`; no pull request created.
-- Current task: adopt Kevin's uploaded workspace organization instructions.
+- Active branch: `main`. The documentation from `docs/workspace-instructions`
+  has been merged with Kevin's approval; no pull request was needed.
+- Current task completed: adopt Kevin's uploaded workspace organization instructions.
   This continues the existing Mochi Desktop cloud conversation; no shareable
-  cloud-task URL is available. This branch is the portable handoff reference.
+  cloud-task URL is available. This document on `main` is the portable handoff.
 - Current cloud checkout: `/workspace/Mochi-Desktop`.
 - Windows project path: unavailable and not verified in this session. The
   designated local workspace is ChatGPT Workspace; no local mirror was created
@@ -55,12 +56,12 @@ movement, optional Ocean Cleanup, and reliable manual-download updates.
   sessions do not depend on access to a Windows-only instruction file.
 - Keep personal workspace paths and private task identifiers out of this public
   repository. The full supplied instructions remain in the current conversation.
-- Deliver this documentation on a separate pushed branch for review. Creating
-  this handoff does not authorize merging it or publishing another release.
+- The documentation was delivered on a separate pushed branch and subsequently
+  merged into `main` after Kevin's explicit approval. Future work still follows
+  the review and authorization requirements in AGENTS.md.
 
 ## Outstanding tasks
 
-- Review the workspace-instructions branch and merge when authorized.
 - When Windows access is available, verify the existing project location and
   inspect uncommitted work before synchronizing the accepted cloud changes.
 - No application feature or bug-fix request is currently pending.
